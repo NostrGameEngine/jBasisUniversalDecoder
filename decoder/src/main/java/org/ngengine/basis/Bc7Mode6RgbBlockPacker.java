@@ -2769,7 +2769,7 @@ final class Bc7Mode6RgbBlockPacker {
 
             float error = 0.0f;
             for (int c = 0; c < 3; c++) {
-                float delta = Math.fma(-color[c], 255.0f, scaled[c]);
+                float delta = scaled[c] - color[c] * 255.0f;
                 error += delta * delta;
             }
             if (error < bestError) {
@@ -2798,7 +2798,7 @@ final class Bc7Mode6RgbBlockPacker {
 
             float error = 0.0f;
             for (int c = 0; c < 3; c++) {
-                float delta = Math.fma(-color[c], 255.0f, scaled[c]);
+                float delta = scaled[c] - color[c] * 255.0f;
                 error += delta * delta;
             }
             if (error < bestError) {
@@ -2850,8 +2850,8 @@ final class Bc7Mode6RgbBlockPacker {
             float lowError = 0.0f;
             float highError = 0.0f;
             for (int c = 0; c < 3; c++) {
-                float lowDelta = Math.fma(-lowColor[c], 255.0f, lowScaled[c]);
-                float highDelta = Math.fma(-highColor[c], 255.0f, highScaled[c]);
+                float lowDelta = lowScaled[c] - lowColor[c] * 255.0f;
+                float highDelta = highScaled[c] - highColor[c] * 255.0f;
                 lowError += lowDelta * lowDelta;
                 highError += highDelta * highDelta;
             }
@@ -2915,8 +2915,8 @@ final class Bc7Mode6RgbBlockPacker {
             float lowError = 0.0f;
             float highError = 0.0f;
             for (int c = 0; c < 4; c++) {
-                float lowDelta = Math.fma(-lowColor[c], 255.0f, lowScaled[c]);
-                float highDelta = Math.fma(-highColor[c], 255.0f, highScaled[c]);
+                float lowDelta = lowScaled[c] - lowColor[c] * 255.0f;
+                float highDelta = highScaled[c] - highColor[c] * 255.0f;
                 lowError += lowDelta * lowDelta;
                 highError += highDelta * highDelta;
             }
@@ -2978,8 +2978,8 @@ final class Bc7Mode6RgbBlockPacker {
             float inverse255 = 1.0f / 255.0f;
             float error = 0.0f;
             for (int c = 0; c < 3; c++) {
-                float lowDelta = Math.fma(lowScaled[c], inverse255, -lowColor[c]);
-                float highDelta = Math.fma(highScaled[c], inverse255, -highColor[c]);
+                float lowDelta = lowScaled[c] * inverse255 - lowColor[c];
+                float highDelta = highScaled[c] * inverse255 - highColor[c];
                 error += lowDelta * lowDelta + highDelta * highDelta;
             }
             if (error < bestError) {
@@ -3434,7 +3434,7 @@ final class Bc7Mode6RgbBlockPacker {
         float q10R = totals[0] - q00R;
         float q10G = totals[1] - q00G;
         float q10B = totals[2] - q00B;
-        float det = Math.fma(z00, z11, -(z10 * z10));
+        float det = z00 * z11 - z10 * z10;
         if (Math.abs(det) < 1.0e-8f) {
             return null;
         }
@@ -3445,14 +3445,14 @@ final class Bc7Mode6RgbBlockPacker {
         final float iz10 = -z10 * det;
         final float iz11 = z00 * det;
         float[] high = {
-            clamp(Math.fma(iz00, q00R, iz01 * q10R), 0.0f, 255.0f),
-            clamp(Math.fma(iz00, q00G, iz01 * q10G), 0.0f, 255.0f),
-            clamp(Math.fma(iz00, q00B, iz01 * q10B), 0.0f, 255.0f)
+            clamp(iz00 * q00R + iz01 * q10R, 0.0f, 255.0f),
+            clamp(iz00 * q00G + iz01 * q10G, 0.0f, 255.0f),
+            clamp(iz00 * q00B + iz01 * q10B, 0.0f, 255.0f)
         };
         float[] low = {
-            clamp(Math.fma(iz10, q00R, iz11 * q10R), 0.0f, 255.0f),
-            clamp(Math.fma(iz10, q00G, iz11 * q10G), 0.0f, 255.0f),
-            clamp(Math.fma(iz10, q00B, iz11 * q10B), 0.0f, 255.0f)
+            clamp(iz10 * q00R + iz11 * q10R, 0.0f, 255.0f),
+            clamp(iz10 * q00G + iz11 * q10G, 0.0f, 255.0f),
+            clamp(iz10 * q00B + iz11 * q10B, 0.0f, 255.0f)
         };
         return new float[][] {low, high};
     }
@@ -3480,7 +3480,7 @@ final class Bc7Mode6RgbBlockPacker {
             }
         }
 
-        float det = Math.fma(z00, z11, -(z10 * z10));
+        float det = z00 * z11 - z10 * z10;
         if (Math.abs(det) < 1e-8f) {
             return null;
         }
@@ -3494,8 +3494,8 @@ final class Bc7Mode6RgbBlockPacker {
         float[] high = new float[4];
         for (int c = 0; c < 4; c++) {
             float q10 = totals[c] - q00[c];
-            high[c] = clamp(Math.fma(iz00, q00[c], iz01 * q10), 0.0f, 255.0f) * (1.0f / 255.0f);
-            low[c] = clamp(Math.fma(iz10, q00[c], iz11 * q10), 0.0f, 255.0f) * (1.0f / 255.0f);
+            high[c] = clamp(iz00 * q00[c] + iz01 * q10, 0.0f, 255.0f) * (1.0f / 255.0f);
+            low[c] = clamp(iz10 * q00[c] + iz11 * q10, 0.0f, 255.0f) * (1.0f / 255.0f);
         }
         return new float[][] {low, high};
     }
@@ -3546,7 +3546,7 @@ final class Bc7Mode6RgbBlockPacker {
             float q10R = subsetTotals[subset][0] - q00R[subset];
             float q10G = subsetTotals[subset][1] - q00G[subset];
             float q10B = subsetTotals[subset][2] - q00B[subset];
-            float det = Math.fma(z00[subset], z11[subset], -(z10[subset] * z10[subset]));
+            float det = z00[subset] * z11[subset] - z10[subset] * z10[subset];
             if (Math.abs(det) < 1e-8f) {
                 continue;
             }
@@ -3557,14 +3557,14 @@ final class Bc7Mode6RgbBlockPacker {
             float iz10 = -z10[subset] * det;
             float iz11 = z00[subset] * det;
             result[subset * 2] = new float[] {
-                clamp(Math.fma(iz10, q00R[subset], iz11 * q10R), 0.0f, 255.0f) * (1.0f / 255.0f),
-                clamp(Math.fma(iz10, q00G[subset], iz11 * q10G), 0.0f, 255.0f) * (1.0f / 255.0f),
-                clamp(Math.fma(iz10, q00B[subset], iz11 * q10B), 0.0f, 255.0f) * (1.0f / 255.0f)
+                clamp(iz10 * q00R[subset] + iz11 * q10R, 0.0f, 255.0f) * (1.0f / 255.0f),
+                clamp(iz10 * q00G[subset] + iz11 * q10G, 0.0f, 255.0f) * (1.0f / 255.0f),
+                clamp(iz10 * q00B[subset] + iz11 * q10B, 0.0f, 255.0f) * (1.0f / 255.0f)
             };
             result[subset * 2 + 1] = new float[] {
-                clamp(Math.fma(iz00, q00R[subset], iz01 * q10R), 0.0f, 255.0f) * (1.0f / 255.0f),
-                clamp(Math.fma(iz00, q00G[subset], iz01 * q10G), 0.0f, 255.0f) * (1.0f / 255.0f),
-                clamp(Math.fma(iz00, q00B[subset], iz01 * q10B), 0.0f, 255.0f) * (1.0f / 255.0f)
+                clamp(iz00 * q00R[subset] + iz01 * q10R, 0.0f, 255.0f) * (1.0f / 255.0f),
+                clamp(iz00 * q00G[subset] + iz01 * q10G, 0.0f, 255.0f) * (1.0f / 255.0f),
+                clamp(iz00 * q00B[subset] + iz01 * q10B, 0.0f, 255.0f) * (1.0f / 255.0f)
             };
         }
         return result;
@@ -3601,7 +3601,7 @@ final class Bc7Mode6RgbBlockPacker {
         }
 
         for (int subset = 0; subset < subsetCount; subset++) {
-            float det = Math.fma(z00[subset], z11[subset], -(z10[subset] * z10[subset]));
+            float det = z00[subset] * z11[subset] - z10[subset] * z10[subset];
             if (Math.abs(det) < 1e-8f) {
                 continue;
             }
@@ -3615,9 +3615,9 @@ final class Bc7Mode6RgbBlockPacker {
             float[] high = new float[4];
             for (int c = 0; c < 4; c++) {
                 float q10 = subsetTotals[subset][c] - q00[subset][c];
-                low[c] = clamp(Math.fma(iz10, q00[subset][c], iz11 * q10), 0.0f, 255.0f)
+                low[c] = clamp(iz10 * q00[subset][c] + iz11 * q10, 0.0f, 255.0f)
                         * (1.0f / 255.0f);
-                high[c] = clamp(Math.fma(iz00, q00[subset][c], iz01 * q10), 0.0f, 255.0f)
+                high[c] = clamp(iz00 * q00[subset][c] + iz01 * q10, 0.0f, 255.0f)
                         * (1.0f / 255.0f);
             }
             result[subset * 2] = low;
@@ -3644,7 +3644,7 @@ final class Bc7Mode6RgbBlockPacker {
         }
 
         float q10 = total - q00;
-        float det = Math.fma(z00, z11, -(z10 * z10));
+        float det = z00 * z11 - z10 * z10;
         if (Math.abs(det) < 1e-8f) {
             return null;
         }
@@ -3654,8 +3654,8 @@ final class Bc7Mode6RgbBlockPacker {
         float iz01 = -z10 * det;
         float iz10 = -z10 * det;
         float iz11 = z00 * det;
-        float high = clamp(Math.fma(iz00, q00, iz01 * q10), 0.0f, 255.0f);
-        float low = clamp(Math.fma(iz10, q00, iz11 * q10), 0.0f, 255.0f);
+        float high = clamp(iz00 * q00 + iz01 * q10, 0.0f, 255.0f);
+        float low = clamp(iz10 * q00 + iz11 * q10, 0.0f, 255.0f);
         return new float[] {low, high};
     }
 
@@ -3705,18 +3705,18 @@ final class Bc7Mode6RgbBlockPacker {
         float wy = cov[3] * scale;
         float wz = cov[5] * scale;
         return new Axis(
-                Math.fma(cov[2], wz, Math.fma(cov[1], wy, cov[0] * wx)),
-                Math.fma(cov[4], wz, Math.fma(cov[3], wy, cov[1] * wx)),
-                Math.fma(cov[5], wz, Math.fma(cov[4], wy, cov[2] * wx)));
+                cov[0] * wx + cov[1] * wy + cov[2] * wz,
+                cov[1] * wx + cov[3] * wy + cov[4] * wz,
+                cov[2] * wx + cov[4] * wy + cov[5] * wz);
     }
 
     private static float axisComponent(int c0, int c1, int c2, float wx, float wy, float wz) {
-        return Math.fma(c0, wx, Math.fma(c1, wy, c2 * wz));
+        return c0 * wx + c1 * wy + c2 * wz;
     }
 
     private static float axisComponentMode6(int c0, int c1, int c2, float wx, float wy, float wz) {
         // Match the reference bc7f contraction order for balanced G/B near-ties.
-        return Math.fma(c2, wz, Math.fma(c1, wy, c0 * wx));
+        return c0 * wx + c1 * wy + c2 * wz;
     }
 
     private static float subsetAxisComponent(

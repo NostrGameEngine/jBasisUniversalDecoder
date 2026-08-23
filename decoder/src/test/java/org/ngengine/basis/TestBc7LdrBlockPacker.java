@@ -152,10 +152,10 @@ public class TestBc7LdrBlockPacker {
 
         assertArrayEquals(
                 new byte[] {
-                    0x40, 0x00, 0x00, (byte) 0x82,
-                    0x79, (byte) 0xa3, (byte) 0xff, 0x7f,
-                    (byte) 0x82, (byte) 0xf7, (byte) 0x81, (byte) 0xf7,
-                    (byte) 0x81, 0x77, (byte) 0x81, 0x77
+                    0x40, 0x00, 0x20, 0x52,
+                    0x79, (byte) 0xaf, (byte) 0xff, 0x7f,
+                    (byte) 0xe0, (byte) 0xfc, (byte) 0xe0, (byte) 0xfc,
+                    (byte) 0xe0, (byte) 0xcc, (byte) 0xe0, (byte) 0xcc
                 },
                 mode6);
     }
@@ -201,9 +201,9 @@ public class TestBc7LdrBlockPacker {
         assertArrayEquals(
                 new byte[] {
                     0x22, 0x00, 0x00, 0x00,
-                    0x1d, 0x45, 0x61, 0x22,
+                    (byte) 0xdd, 0x44, 0x61, 0x23,
                     (byte) 0xbb, (byte) 0x9e, 0x40, 0x1e,
-                    (byte) 0xe4, 0x49, (byte) 0x82, 0x3c
+                    (byte) 0xe4, (byte) 0xb7, 0x61, 0x3b
                 },
                 cancellationMode1);
 
@@ -245,10 +245,10 @@ public class TestBc7LdrBlockPacker {
         Bc7Mode6RgbBlockPacker.packMode1Or3RgbBlock(nearlySymmetricMode3Rgba, nearlySymmetricMode3, 0);
         assertArrayEquals(
                 new byte[] {
-                    0x08, 0x14, (byte) 0x83, 0x35,
+                    0x08, 0x14, (byte) 0x83, (byte) 0xb7,
                     (byte) 0x99, 0x46, 0x03, 0x00,
-                    0x54, (byte) 0xb3, (byte) 0xca, 0x26,
-                    0x20, 0x7e, 0x7e, 0x7e
+                    0x54, (byte) 0xb3, (byte) 0xc9, 0x26,
+                    (byte) 0xc0, (byte) 0xfe, (byte) 0xfe, (byte) 0xfe
                 },
                 nearlySymmetricMode3);
 
@@ -279,10 +279,10 @@ public class TestBc7LdrBlockPacker {
         Bc7Mode6RgbBlockPacker.packMode1Or3RgbBlock(residualXuastc8x6Mode1Rgba, residualXuastc8x6Mode1, 0);
         assertArrayEquals(
                 new byte[] {
-                    0x22, (byte) 0xbf, 0x5d, (byte) 0xe4,
+                    0x22, 0x7f, 0x5d, (byte) 0xe4,
                     0x00, 0x00, 0x00, (byte) 0x80,
                     (byte) 0xa2, 0x1f, 0x00, 0x00,
-                    (byte) 0xc8, 0x01, 0x0a, 0x38
+                    (byte) 0xc8, (byte) 0x81, 0x09, 0x38
                 },
                 residualXuastc8x6Mode1);
 

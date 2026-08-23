@@ -834,6 +834,7 @@ class BasisuReferenceRoundTripParityTest {
                 officialPayload = readFirstKtxLevelPayload(newestKtx(officialDir));
             }
             assertArrayEqualsWithFirstDiff(
+                    parityLabel,
                     officialPayload,
                     readBuffer(javaResult.getPixelData()));
         }
@@ -1123,13 +1124,18 @@ class BasisuReferenceRoundTripParityTest {
     }
 
     private static void assertArrayEqualsWithFirstDiff(byte[] expected, byte[] actual) {
+        assertArrayEqualsWithFirstDiff(null, expected, actual);
+    }
+
+    private static void assertArrayEqualsWithFirstDiff(String label, byte[] expected, byte[] actual) {
         if (expected.length == actual.length) {
             for (int i = 0; i < expected.length; i++) {
                 if (expected[i] != actual[i]) {
                     assertArrayEquals(
                             expected,
                             actual,
-                            "first byte diff at " + i
+                            (label == null ? "" : label + ": ")
+                                    + "first byte diff at " + i
                                     + " expected=" + Byte.toUnsignedInt(expected[i])
                                     + " actual=" + Byte.toUnsignedInt(actual[i])
                                     + " expectedBlock=" + blockHex(expected, i)

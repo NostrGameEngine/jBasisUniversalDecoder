@@ -944,8 +944,8 @@ final class UastcLdrAstcTranscoder {
             }
             float error = 0.0f;
             for (int comp = 0; comp < totalComps; comp++) {
-                float lowDelta = scaledLow[comp] / 255.0f - low[comp];
-                float highDelta = scaledHigh[comp] / 255.0f - high[comp];
+                float lowDelta = scaledLow[comp] * (1.0f / 255.0f) - low[comp];
+                float highDelta = scaledHigh[comp] * (1.0f / 255.0f) - high[comp];
                 error += lowDelta * lowDelta + highDelta * highDelta;
             }
             if (error < bestError) {
@@ -965,8 +965,8 @@ final class UastcLdrAstcTranscoder {
         int totalBits = compBits + 1;
         int scaleInt = (1 << totalBits) - 1;
         float scale = scaleInt;
-        double bestLowError = Double.MAX_VALUE;
-        double bestHighError = Double.MAX_VALUE;
+        float bestLowError = Float.MAX_VALUE;
+        float bestHighError = Float.MAX_VALUE;
         PbitChoice best = new PbitChoice();
         for (int pbit = 0; pbit < 2; pbit++) {
             int[] minColor = new int[4];
@@ -979,11 +979,11 @@ final class UastcLdrAstcTranscoder {
                 scaledLow[comp] = scalePbitEndpoint(minColor[comp], totalBits);
                 scaledHigh[comp] = scalePbitEndpoint(maxColor[comp], totalBits);
             }
-            double lowError = 0.0;
-            double highError = 0.0;
+            float lowError = 0.0f;
+            float highError = 0.0f;
             for (int comp = 0; comp < totalComps; comp++) {
-                double lowDelta = scaledLow[comp] - low[comp] * 255.0;
-                double highDelta = scaledHigh[comp] - high[comp] * 255.0;
+                float lowDelta = scaledLow[comp] - low[comp] * 255.0f;
+                float highDelta = scaledHigh[comp] - high[comp] * 255.0f;
                 lowError += lowDelta * lowDelta;
                 highError += highDelta * highDelta;
             }

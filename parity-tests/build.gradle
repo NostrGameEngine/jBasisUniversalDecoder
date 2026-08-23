@@ -20,11 +20,14 @@ tasks.withType(JavaCompile).configureEach {
 
 def basisuReferenceSource = layout.buildDirectory.dir('basisu-reference/src')
 def basisuReferenceBuild = layout.buildDirectory.dir('basisu-reference/cmake-build')
-def basisuExecutableName = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+// Keep the native parity reference numerically aligned with Java's explicit float operations.
+def nativeFloatingPointFlags = isWindows ? [] : ['-ffp-contract=off']
+def basisuExecutableName = isWindows
         ? 'basisu.exe'
         : 'basisu'
 def basisuExecutable = basisuReferenceSource.map { it.file("bin/${basisuExecutableName}") }
-def basisuRawTranscodeExecutableName = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+def basisuRawTranscodeExecutableName = isWindows
         ? 'basisu_raw_transcode.exe'
         : 'basisu_raw_transcode'
 def basisuRawTranscodeExecutable = layout.buildDirectory.file("basisu-reference/${basisuRawTranscodeExecutableName}")
@@ -44,7 +47,8 @@ tasks.register('configureBasisuReference', Exec) {
             '-B', basisuReferenceBuild.get().asFile.absolutePath,
             '-DCMAKE_BUILD_TYPE=Release',
             '-DBASISU_EXAMPLES=OFF',
-            '-DBASISU_OPENCL=OFF'
+            '-DBASISU_OPENCL=OFF',
+            "-DCMAKE_CXX_FLAGS=${nativeFloatingPointFlags.join(' ')}"
 }
 
 tasks.register('buildBasisuReference', Exec) {
@@ -70,6 +74,7 @@ tasks.register('buildBasisuRawTranscode', Exec) {
             '-std=c++17',
             '-O2',
             '-DNDEBUG',
+            *nativeFloatingPointFlags,
             '-I', basisuReferenceSource.get().asFile.absolutePath,
             '-I', basisuReferenceSource.get().file('transcoder').asFile.absolutePath,
             layout.projectDirectory.file('src/test/harness/basisu_raw_transcode.cpp').asFile.absolutePath,

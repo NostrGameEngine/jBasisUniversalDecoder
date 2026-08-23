@@ -346,12 +346,12 @@ final class Bc1LdrBlockPacker {
         float iz01 = -z10 * det;
         float iz10 = -z10 * det;
         float iz11 = z00 * det;
-        low[0] = Math.fma(iz00, q00R, iz01 * q10R);
-        high[0] = Math.fma(iz10, q00R, iz11 * q10R);
-        low[1] = Math.fma(iz00, q00G, iz01 * q10G);
-        high[1] = Math.fma(iz10, q00G, iz11 * q10G);
-        low[2] = Math.fma(iz00, q00B, iz01 * q10B);
-        high[2] = Math.fma(iz10, q00B, iz11 * q10B);
+        low[0] = iz00 * q00R + iz01 * q10R;
+        high[0] = iz10 * q00R + iz11 * q10R;
+        low[1] = iz00 * q00G + iz01 * q10G;
+        high[1] = iz10 * q00G + iz11 * q10G;
+        low[2] = iz00 * q00B + iz01 * q10B;
+        high[2] = iz10 * q00B + iz11 * q10B;
 
         for (int component = 0; component < 3; component++) {
             if (low[component] < 0.0f || high[component] > 255.0f) {
