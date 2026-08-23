@@ -1,14 +1,147 @@
 plugins {
     id 'base'
+    id 'org.jreleaser' version '1.25.0'
+}
+
+def publishedVersion = providers.gradleProperty('projectVersion').orElse('1.0.0-SNAPSHOT').get()
+def centralSnapshotsUrl = 'https://central.sonatype.com/repository/maven-snapshots/'
+def releaseStagingDirectory = layout.buildDirectory.dir('staging-deploy')
+def publicationProjects = [':decoder', ':basis-gradle-plugin']
+def snapshotPublicationTasks = publicationProjects.collect {
+    "${it}:publishAllPublicationsToCentralSnapshotsRepository"
+}
+def releasePublicationTasks = publicationProjects.collect {
+    "${it}:publishAllPublicationsToStagingRepository"
 }
 
 allprojects {
     group = 'org.ngengine.basis'
-    version = '1.0.0'
+    version = publishedVersion
 
     repositories {
         mavenCentral()
     }
+}
+
+subprojects {
+    plugins.withId('maven-publish') {
+        def centralUsername = project.providers.environmentVariable('SONATYPE_USERNAME').getOrElse('')
+        def centralPassword = project.providers.environmentVariable('SONATYPE_PASSWORD').getOrElse('')
+
+        project.extensions.getByType(org.gradle.api.publish.PublishingExtension).repositories {
+            maven {
+                name = 'centralSnapshots'
+                url = project.uri(centralSnapshotsUrl)
+                credentials {
+                    username = centralUsername
+                    password = centralPassword
+                }
+            }
+            maven {
+                name = 'staging'
+                url = rootProject.layout.buildDirectory.dir('staging-deploy')
+            }
+        }
+
+        project.pluginManager.apply('signing')
+        def signingKey = project.providers.environmentVariable('GPG_PRIVATE_KEY')
+                .orElse(project.providers.gradleProperty('signingKey'))
+                .getOrNull()
+        if (signingKey != null && !signingKey.trim().isEmpty()) {
+            def signingPassphrase = project.providers.environmentVariable('GPG_PASSPHRASE')
+                    .orElse(project.providers.gradleProperty('signingPassword'))
+                    .getOrElse('')
+            def signingExtension = project.extensions.getByType(org.gradle.plugins.signing.SigningExtension)
+            signingExtension.useInMemoryPgpKeys(signingKey, signingPassphrase)
+            signingExtension.sign(project.extensions
+                    .getByType(org.gradle.api.publish.PublishingExtension).publications)
+        }
+    }
+}
+
+tasks.register('publishSnapshots') {
+    group = 'publishing'
+    description = 'Publishes all Maven Central snapshot publications.'
+    dependsOn(snapshotPublicationTasks)
+}
+
+tasks.register('cleanReleaseStaging') {
+    group = 'publishing'
+    description = 'Removes the local Maven Central release staging directory.'
+    doLast {
+        delete(releaseStagingDirectory)
+    }
+}
+
+tasks.register('stageReleaseArtifacts') {
+    group = 'publishing'
+    description = 'Stages all release publications for Maven Central.'
+    dependsOn('cleanReleaseStaging')
+    dependsOn(releasePublicationTasks)
+}
+
+gradle.projectsEvaluated {
+    releasePublicationTasks.each { publicationTaskPath ->
+        def separator = publicationTaskPath.lastIndexOf(':')
+        def projectPath = publicationTaskPath.substring(0, separator)
+        def taskName = publicationTaskPath.substring(separator + 1)
+        project(projectPath).tasks.named(taskName).configure {
+            mustRunAfter(rootProject.tasks.named('cleanReleaseStaging'))
+        }
+    }
+}
+
+jreleaser {
+    project {
+        name = 'jBasisUniversalDecoder'
+        description = 'Standalone Java decoder/transcoder for Basis Universal and KTX2 texture payloads.'
+        authors = ['Nostr Game Engine']
+        license = 'Apache-2.0'
+        links {
+            homepage = 'https://github.com/NostrGameEngine/jBasisUniversalDecoder'
+        }
+        java {
+            groupId = 'org.ngengine.basis'
+            artifactId = 'jbasis-universal-decoder'
+            multiProject = true
+        }
+    }
+
+    release {
+        github {
+            enabled = true
+            skipTag = true
+            skipRelease = true
+            uploadAssets = 'NEVER'
+        }
+    }
+
+    signing {
+        active = 'RELEASE'
+        pgp {
+            active = 'RELEASE'
+            armored = true
+            verify = false
+        }
+    }
+
+    deploy {
+        maven {
+            mavenCentral {
+                sonatype {
+                    active = 'RELEASE'
+                    url = 'https://central.sonatype.com/api/v1/publisher'
+                    namespace = 'org.ngengine.basis'
+                    applyMavenCentralRules = true
+                    stagingRepository('build/staging-deploy')
+                }
+            }
+        }
+    }
+}
+
+tasks.named('jreleaserDeploy') {
+    dependsOn(tasks.named('stageReleaseArtifacts'))
 }
 
 tasks.register('parityTest') {

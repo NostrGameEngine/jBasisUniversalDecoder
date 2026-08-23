@@ -1,5 +1,6 @@
 plugins {
     id 'java-gradle-plugin'
+    id 'maven-publish'
 }
 
 dependencies {
@@ -10,6 +11,8 @@ dependencies {
 }
 
 java {
+    withSourcesJar()
+    withJavadocJar()
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
 }
@@ -27,6 +30,40 @@ gradlePlugin {
         basisTextureEncoder {
             id = 'org.ngengine.basis.texture-encoder'
             implementationClass = 'org.ngengine.basis.gradle.BasisTextureEncoderPlugin'
+        }
+    }
+}
+
+publishing {
+    repositories {
+        mavenLocal()
+    }
+    publications {
+        withType(MavenPublication).configureEach {
+            pom {
+                name = 'jBasis Universal Gradle Texture Encoder Plugin'
+                description = 'Gradle plugin that converts image resources to Basis Universal textures at build time.'
+                url = 'https://github.com/NostrGameEngine/jBasisUniversalDecoder'
+                licenses {
+                    license {
+                        name = 'Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution = 'repo'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'nostr-game-engine'
+                        name = 'Nostr Game Engine'
+                        organizationUrl = 'https://github.com/NostrGameEngine'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/NostrGameEngine/jBasisUniversalDecoder.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/NostrGameEngine/jBasisUniversalDecoder.git'
+                    url = 'https://github.com/NostrGameEngine/jBasisUniversalDecoder'
+                }
+            }
         }
     }
 }

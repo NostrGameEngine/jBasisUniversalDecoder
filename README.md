@@ -33,6 +33,32 @@ Standalone Java decoder/transcoder port for Basis Universal, and Gradle plugin f
 > [!TIP]
 > Running `parityTest` requires a native C++ toolchain with CMake.
 
+## Publishing
+
+The `decoder` library and the `basis-gradle-plugin` are published with the
+`org.ngengine.basis` Maven group. Local development defaults to
+`1.0.0-SNAPSHOT`; release automation supplies the version from the GitHub
+release tag.
+
+GitHub Actions publishes `1.0.0-SNAPSHOT` to the Central Portal snapshot
+repository after every successful commit on `master`. A Maven Central release
+is published when a GitHub Release is published, using a tag such as `v1.0.0`.
+
+The Central Portal namespace `org.ngengine.basis` must be verified and have
+snapshot publishing enabled before the workflows can deploy. Configure these
+repository secrets:
+
+- `GPG_PRIVATE_KEY`
+- `GPG_PASSPHRASE`
+- `SONATYPE_USERNAME`
+- `SONATYPE_PASSWORD`
+
+For local snapshot publication, run:
+
+```bash
+./gradlew publishSnapshots -PprojectVersion=1.0.0-SNAPSHOT
+```
+
 ## Supported formats
 
 - `.basis` ETC1S to RGBA8, RGB565/BGR565/RGBA4444, ETC1/ETC2,

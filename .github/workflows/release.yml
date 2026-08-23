@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish Maven Central release
+    if: github.repository == 'NostrGameEngine/jBasisUniversalDecoder'
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      JRELEASER_GITHUB_TOKEN: ${{ github.token }}
+      JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+      JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+      JRELEASER_GPG_SECRET_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      JRELEASER_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify tag and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_TAG" in
+            v[0-9]*|[0-9]*) ;;
+            *) echo "Release tag must start with v or a numeric version: $RELEASE_TAG" >&2; exit 1 ;;
+          esac
+          release_version="${RELEASE_TAG#v}"
+          if [[ "$release_version" == *-SNAPSHOT ]]; then
+            echo "A GitHub release cannot publish a -SNAPSHOT version." >&2
+            exit 1
+          fi
+          ./gradlew --no-daemon clean check parityTest jreleaserDeploy \
+            -PprojectVersion="$release_version" --console=plain
