@@ -1,0 +1,6 @@
+rootProject.name = 'jBasisUniversalDecoder'
+
+include 'decoder'
+include 'parity-tests'
+include 'basis-gradle-plugin'
+include 'basis-viewer'

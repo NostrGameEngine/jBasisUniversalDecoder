@@ -1,0 +1,181 @@
+plugins {
+    id 'java-library'
+    id 'jacoco'
+    id 'checkstyle'
+    id 'maven-publish'
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release.set(11)
+}
+
+test {
+    useJUnitPlatform()
+    workingDir = projectDir
+}
+
+checkstyle {
+    configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+    configProperties = [
+            'checkstyle.suppressions.file': rootProject.file('config/checkstyle/checkstyle-suppressions.xml')
+    ]
+    toolVersion = '10.12.4'
+}
+
+tasks.withType(Checkstyle).configureEach {
+    ignoreFailures = false
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+tasks.named('checkstyleTest') {
+    exclude '**/Ktx2CppTranscoderApi.java'
+    exclude '**/Ktx2NativeParityStubs.java'
+}
+
+def countCheckstyleViolations = { String reportName ->
+    File report = file("${buildDir}/reports/checkstyle/${reportName}.xml")
+    if (!report.exists()) {
+        return 0
+    }
+    def parsed = new groovy.xml.XmlSlurper().parse(report)
+    int count = 0
+    parsed.file.each { fileNode ->
+        count += fileNode.error.size()
+    }
+    return count
+}
+
+def checkstyleBaselineFile = rootProject.file('config/quality/checkstyle-baseline-count.json')
+
+tasks.register('verifyStaticQualityBaseline') {
+    dependsOn(tasks.named('checkstyleMain'), tasks.named('checkstyleTest'))
+
+    doLast {
+        if (!checkstyleBaselineFile.exists()) {
+            throw new GradleException("Missing checkstyle baseline file: ${checkstyleBaselineFile}")
+        }
+
+        def baseline = new groovy.json.JsonSlurper().parseText(checkstyleBaselineFile.text.trim())
+        int actualMain = countCheckstyleViolations('main')
+        int actualTest = countCheckstyleViolations('test')
+
+        if (actualMain > (baseline.main as int) || actualTest > (baseline.test as int)) {
+            throw new GradleException(
+                    "Static quality regression: checkstyle violations increased "
+                            + "(main ${actualMain}/${baseline.main}, test ${actualTest}/${baseline.test}).")
+        }
+    }
+}
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+jacocoTestCoverageVerification {
+    dependsOn test
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: [
+                'org/ngengine/basis/AstcHdrBlockDecoder*.class',
+                'org/ngengine/basis/Bc6hUastcHdr4x4Transcoder*.class',
+                'org/ngengine/basis/Bc6hFastBlockEncoder*.class'
+        ])
+    }))
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.65
+            }
+        }
+    }
+}
+
+jacocoTestReport {
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: [
+                'org/ngengine/basis/AstcHdrBlockDecoder*.class',
+                'org/ngengine/basis/Bc6hUastcHdr4x4Transcoder*.class',
+                'org/ngengine/basis/Bc6hFastBlockEncoder*.class'
+        ])
+    }))
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+tasks.register('verifyPureJavaRuntime') {
+    group = 'verification'
+    description = 'Fails when the decoder runtime contains JNI/native loader hooks or native binaries.'
+    dependsOn(tasks.named('jar'))
+
+    doLast {
+        List<String> offenders = []
+        fileTree('src/main/java') {
+            include '**/*.java'
+        }.files.each { File source ->
+            String content = source.text
+            if (content =~ /\bSystem\.(loadLibrary|load)\b/) {
+                offenders << "${source}: native loader"
+            }
+            if (content =~ /\b(public|private|protected)\s+native\b/) {
+                offenders << "${source}: native method"
+            }
+        }
+
+        def jarFile = tasks.named('jar').get().archiveFile.get().asFile
+        new java.util.jar.JarFile(jarFile).withCloseable { jf ->
+            jf.entries().each { entry ->
+                String name = entry.name.toLowerCase(Locale.ROOT)
+                if (name.endsWith('.so') || name.endsWith('.dll') || name.endsWith('.dylib')
+                        || name.endsWith('.a') || name.endsWith('.lib')) {
+                    offenders << "runtime jar native binary: ${entry.name}"
+                }
+            }
+        }
+
+        if (!offenders.isEmpty()) {
+            throw new GradleException('Pure Java runtime check failed:\n' + offenders.unique().join('\n'))
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn(tasks.named('verifyPureJavaRuntime'))
+    dependsOn(tasks.named('verifyStaticQualityBaseline'))
+    dependsOn(tasks.named('jacocoTestCoverageVerification'))
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = 'jbasis-universal-decoder'
+        }
+    }
+
+    repositories {
+        mavenLocal()
+    }
+}

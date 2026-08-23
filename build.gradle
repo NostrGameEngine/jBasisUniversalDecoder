@@ -1,0 +1,18 @@
+plugins {
+    id 'base'
+}
+
+allprojects {
+    group = 'org.ngengine.basis'
+    version = '1.0.0'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+tasks.register('parityTest') {
+    group = 'verification'
+    description = 'Builds the official Basis Universal reference tools and runs Java/C++ parity tests.'
+    dependsOn ':parity-tests:test'
+}

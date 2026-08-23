@@ -1,0 +1,59 @@
+plugins {
+    id 'java-gradle-plugin'
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation gradleTestKit()
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release.set(11)
+}
+
+test {
+    useJUnitPlatform()
+}
+
+gradlePlugin {
+    plugins {
+        basisTextureEncoder {
+            id = 'org.ngengine.basis.texture-encoder'
+            implementationClass = 'org.ngengine.basis.gradle.BasisTextureEncoderPlugin'
+        }
+    }
+}
+
+def requiredBasisuBinaries = [
+        'darwin-aarch64/basisu',
+        'darwin-x86_64/basisu',
+        'linux-aarch64/basisu',
+        'linux-x86_64/basisu',
+        'windows-aarch64/basisu.exe',
+        'windows-x86_64/basisu.exe'
+]
+
+tasks.register('verifyBundledBasisuBinaries') {
+    group = 'verification'
+    description = 'Verifies that release packaging includes basisu executables for all supported platforms.'
+
+    doLast {
+        List<String> missing = []
+        for (String relativePath : requiredBasisuBinaries) {
+            File binary = file("src/main/resources/basisu-bin/${relativePath}")
+            if (!binary.isFile() || binary.length() == 0L) {
+                missing.add(relativePath)
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new GradleException('Missing bundled basisu binaries:\n' + missing.join('\n'))
+        }
+    }
+}

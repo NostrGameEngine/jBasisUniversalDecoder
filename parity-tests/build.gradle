@@ -1,0 +1,86 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    testImplementation project(':decoder')
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release.set(11)
+}
+
+def basisuReferenceSource = layout.buildDirectory.dir('basisu-reference/src')
+def basisuReferenceBuild = layout.buildDirectory.dir('basisu-reference/cmake-build')
+def basisuExecutableName = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+        ? 'basisu.exe'
+        : 'basisu'
+def basisuExecutable = basisuReferenceSource.map { it.file("bin/${basisuExecutableName}") }
+def basisuRawTranscodeExecutableName = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+        ? 'basisu_raw_transcode.exe'
+        : 'basisu_raw_transcode'
+def basisuRawTranscodeExecutable = layout.buildDirectory.file("basisu-reference/${basisuRawTranscodeExecutableName}")
+
+tasks.register('syncBasisUniversalReference', Sync) {
+    from rootProject.file('basis_universal')
+    into basisuReferenceSource
+    exclude '.git/**', 'build/**', 'bin/**'
+}
+
+tasks.register('configureBasisuReference', Exec) {
+    dependsOn tasks.named('syncBasisUniversalReference')
+    inputs.dir basisuReferenceSource
+    outputs.dir basisuReferenceBuild
+    commandLine 'cmake',
+            '-S', basisuReferenceSource.get().asFile.absolutePath,
+            '-B', basisuReferenceBuild.get().asFile.absolutePath,
+            '-DCMAKE_BUILD_TYPE=Release',
+            '-DBASISU_EXAMPLES=OFF',
+            '-DBASISU_OPENCL=OFF'
+}
+
+tasks.register('buildBasisuReference', Exec) {
+    group = 'verification'
+    description = 'Builds the official Basis Universal command line tool from the tracked submodule.'
+    dependsOn tasks.named('configureBasisuReference')
+    outputs.file basisuExecutable
+    commandLine 'cmake',
+            '--build', basisuReferenceBuild.get().asFile.absolutePath,
+            '--target', 'basisu',
+            '--config', 'Release',
+            '--parallel'
+}
+
+tasks.register('buildBasisuRawTranscode', Exec) {
+    group = 'verification'
+    description = 'Builds a tiny official-transcoder raw dump harness for parity tests.'
+    dependsOn tasks.named('buildBasisuReference')
+    inputs.file layout.projectDirectory.file('src/test/harness/basisu_raw_transcode.cpp')
+    inputs.file basisuReferenceBuild.map { it.file('libbasisu_encoder.a') }
+    outputs.file basisuRawTranscodeExecutable
+    commandLine 'c++',
+            '-std=c++17',
+            '-O2',
+            '-DNDEBUG',
+            '-I', basisuReferenceSource.get().asFile.absolutePath,
+            '-I', basisuReferenceSource.get().file('transcoder').asFile.absolutePath,
+            layout.projectDirectory.file('src/test/harness/basisu_raw_transcode.cpp').asFile.absolutePath,
+            basisuReferenceBuild.get().file('libbasisu_encoder.a').asFile.absolutePath,
+            '-lpthread',
+            '-o', basisuRawTranscodeExecutable.get().asFile.absolutePath
+}
+
+test {
+    useJUnitPlatform()
+    dependsOn tasks.named('buildBasisuRawTranscode')
+    systemProperty 'basisu.executable', basisuExecutable.get().asFile.absolutePath
+    systemProperty 'basisu.rawTranscode.executable', basisuRawTranscodeExecutable.get().asFile.absolutePath
+}
