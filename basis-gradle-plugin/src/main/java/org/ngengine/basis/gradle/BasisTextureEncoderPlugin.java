@@ -9,13 +9,13 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
-public final class BasisTextureEncoderPlugin implements Plugin<Project> {
+public class BasisTextureEncoderPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
         BasisTextureEncoderExtension extension = project.getExtensions().create(
                 "basisTextures",
-                BasisTextureEncoderExtension.class);
+                getExtensionType());
 
         TaskProvider<EncodeBasisTexturesTask> encodeTask = project.getTasks().register(
                 "encodeBasisTextures",
@@ -23,6 +23,8 @@ public final class BasisTextureEncoderPlugin implements Plugin<Project> {
                 task -> {
                     task.getImageExtensions().set(extension.getImageExtensions());
                     task.getResourceDirectories().set(extension.getResourceDirectories());
+                    task.getExcludedResourcePaths().set(extension.getExcludedResourcePaths());
+                    task.getDimensionAlignment().set(extension.getDimensionAlignment());
                     task.getBasisuArguments().set(extension.getBasisuArguments());
                     task.getBasisuExecutable().set(extension.getBasisuExecutable());
                     task.getOutputDirectory().set(project.getLayout().getBuildDirectory()
@@ -46,6 +48,32 @@ public final class BasisTextureEncoderPlugin implements Plugin<Project> {
                         && hasEncodedSibling(encodeTask, details.getRelativePath().getPathString()));
             });
         });
+
+        configureAdditionalEncoding(project, extension, encodeTask);
+    }
+
+    /**
+     * Supplies the extension type. Derived plugins can add settings while
+     * retaining the standard {@code basisTextures} DSL.
+     *
+     * @return extension implementation type
+     */
+    protected Class<? extends BasisTextureEncoderExtension> getExtensionType() {
+        return BasisTextureEncoderExtension.class;
+    }
+
+    /**
+     * Hook for plugins that cooperate with the ordinary image encoder.
+     *
+     * @param project target project
+     * @param extension configured encoder extension
+     * @param encodeTask ordinary image encoding task
+     */
+    protected void configureAdditionalEncoding(
+            Project project,
+            BasisTextureEncoderExtension extension,
+            TaskProvider<EncodeBasisTexturesTask> encodeTask) {
+        // Default plugin has no additional encoding stages.
     }
 
     private static boolean hasEncodedSibling(

@@ -11,6 +11,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
@@ -36,7 +39,13 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
     public abstract ListProperty<String> getClasspathResourceDirectories();
 
     @Input
+    public abstract ListProperty<String> getExcludedResourcePaths();
+
+    @Input
     public abstract ListProperty<String> getBasisuArguments();
+
+    @Input
+    public abstract Property<Integer> getDimensionAlignment();
 
     @Input
     @Optional
@@ -53,6 +62,7 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
         Files.createDirectories(outputRoot);
 
         Set<String> extensions = normalizedExtensions();
+        Set<String> excludedPaths = normalizedExcludedPaths();
         List<Path> classpathRoots = classpathResourceRoots();
         for (String directory : getResourceDirectories().get()) {
             Path resourceRoot = normalizedProjectPath(directory);
@@ -63,6 +73,8 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
                 stream
                         .filter(Files::isRegularFile)
                         .filter(path -> extensions.contains(extension(path)))
+                        .filter(path -> !excludedPaths.contains(resourcePath(
+                                relativeResourcePath(path, resourceRoot, classpathRoots))))
                         .forEach(path -> encodeOne(basisu, resourceRoot, classpathRoots, outputRoot, path));
             }
         }
@@ -81,6 +93,7 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
             List<String> command = new ArrayList<>();
             command.add(basisu.toString());
             command.addAll(getBasisuArguments().get());
+            appendDimensionAlignment(command, source);
             command.add("-output_file");
             command.add(output.toString());
             command.add(source.toString());
@@ -100,6 +113,58 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
             Thread.currentThread().interrupt();
             throw new GradleException("Interrupted while encoding " + source, e);
         }
+    }
+
+    private void appendDimensionAlignment(List<String> command, Path source) throws IOException {
+        int alignment = getDimensionAlignment().getOrElse(1);
+        if (alignment < 1) {
+            throw new GradleException("dimensionAlignment must be at least 1");
+        }
+        if (alignment == 1 || hasExplicitResampling(command)) {
+            return;
+        }
+
+        int[] dimensions = readImageDimensions(source);
+        if (dimensions == null) {
+            getLogger().info("Cannot determine dimensions for {}; skipping automatic alignment", source);
+            return;
+        }
+
+        int alignedWidth = alignUp(dimensions[0], alignment);
+        int alignedHeight = alignUp(dimensions[1], alignment);
+        if (alignedWidth == dimensions[0] && alignedHeight == dimensions[1]) {
+            return;
+        }
+        command.add("-resample");
+        command.add(Integer.toString(alignedWidth));
+        command.add(Integer.toString(alignedHeight));
+    }
+
+    private static boolean hasExplicitResampling(List<String> command) {
+        return command.contains("-resample") || command.contains("-resample_factor");
+    }
+
+    private static int[] readImageDimensions(Path source) throws IOException {
+        try (ImageInputStream input = ImageIO.createImageInputStream(source.toFile())) {
+            if (input == null) {
+                return null;
+            }
+            java.util.Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) {
+                return null;
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(input, true, true);
+                return new int[] {reader.getWidth(0), reader.getHeight(0)};
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private static int alignUp(int value, int alignment) {
+        return Math.multiplyExact(Math.floorDiv(Math.addExact(value, alignment - 1), alignment), alignment);
     }
 
     private List<Path> classpathResourceRoots() {
@@ -138,6 +203,20 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
         return result;
     }
 
+    private Set<String> normalizedExcludedPaths() {
+        Set<String> result = new HashSet<>();
+        for (String path : getExcludedResourcePaths().getOrElse(java.util.Collections.emptyList())) {
+            if (path != null && !path.isBlank()) {
+                result.add(path.replace('\\', '/'));
+            }
+        }
+        return result;
+    }
+
+    private static String resourcePath(Path path) {
+        return path.toString().replace('\\', '/');
+    }
+
     private static String extension(Path path) {
         String name = path.getFileName().toString();
         int dot = name.lastIndexOf('.');
@@ -149,7 +228,14 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
         return detectPlatform();
     }
 
-    private Path resolveBasisuExecutable() throws IOException {
+    /**
+     * Resolves the configured or bundled encoder executable for cooperating
+     * Gradle plugins.
+     *
+     * @return executable path
+     * @throws IOException if the bundled executable cannot be extracted
+     */
+    public Path resolveBasisuExecutable() throws IOException {
         String configuredExecutable = getBasisuExecutable().getOrNull();
         if (configuredExecutable != null && !configuredExecutable.isBlank()) {
             Path executable = getProject().file(configuredExecutable).toPath();
