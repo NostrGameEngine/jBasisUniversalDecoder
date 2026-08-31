@@ -187,6 +187,29 @@ public final class BasisDecodeRequest {
         return allocator == null ? ByteBuffer::allocate : allocator;
     }
 
+    /**
+     * Returns an otherwise identical request targeting another image in the
+     * same Basis texture or KTX2 array.
+     *
+     * @param newImageIndex zero-based image index
+     * @return copied request
+     */
+    public BasisDecodeRequest withImageIndex(int newImageIndex) {
+        return new BasisDecodeRequest(
+                encodedData,
+                target,
+                platformCapabilities,
+                preferredFallback,
+                linearColorSpace,
+                qualityLevel,
+                threadCount,
+                newImageIndex,
+                decodeFlags,
+                strictMode,
+                transcodePreset,
+                allocator);
+    }
+
     public static BasisDecodeRequest from(byte[] encodedData) {
         return new Builder(encodedData).build();
     }

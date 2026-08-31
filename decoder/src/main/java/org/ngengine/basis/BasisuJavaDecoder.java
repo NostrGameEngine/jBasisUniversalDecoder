@@ -2,6 +2,9 @@ package org.ngengine.basis;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -85,8 +88,46 @@ public final class BasisuJavaDecoder implements BasisDecoder {
         throw new BasisDecodeException("Input is not a supported Basis or KTX2 container");
     }
 
+    @Override
+    public List<BasisDecodeResult> decodeAllImages(BasisDecodeRequest request) {
+        if (request == null) {
+            throw new BasisDecodeException("Decode request must not be null");
+        }
+        byte[] source = request.getEncodedData();
+        if (!isKtx2(source)) {
+            return BasisDecoder.super.decodeAllImages(request);
+        }
+
+        Ktx2Container container = Ktx2Container.parse(source);
+        int imageCount = ktx2ImageCount(container.getHeader());
+        if (imageCount == 1) {
+            return Collections.singletonList(decodeKtx2(request.withImageIndex(0), source, container));
+        }
+        if (isUastcLdrAstcRequest(container, request)) {
+            return decodeAllKtx2UastcLdr(
+                    request, source, container, BasisTranscodeTarget.ASTC_LDR_4X4);
+        }
+        if (isUastcLdrRgbaRequest(container, request)) {
+            return decodeAllKtx2UastcLdr(
+                    request, source, container, selectUastcLdrJavaTarget(request));
+        }
+
+        List<BasisDecodeResult> results = new ArrayList<>(imageCount);
+        for (int imageIndex = 0; imageIndex < imageCount; imageIndex++) {
+            results.add(decodeKtx2(request.withImageIndex(imageIndex), source, container));
+        }
+        return results;
+    }
+
     private static BasisDecodeResult decodeKtx2(BasisDecodeRequest request, byte[] source) {
         Ktx2Container container = Ktx2Container.parse(source);
+        return decodeKtx2(request, source, container);
+    }
+
+    private static BasisDecodeResult decodeKtx2(
+            BasisDecodeRequest request,
+            byte[] source,
+            Ktx2Container container) {
         if (isEtc1sEtc1Request(container, request)) {
             return decodeKtx2Etc1sEtc1(request, source, container);
         }
@@ -148,13 +189,30 @@ public final class BasisuJavaDecoder implements BasisDecoder {
 
         int levelCount = header.getLevelCount();
         int imageCount = ktx2ImageCount(header);
-        validatedKtx2ImageIndex(request, imageCount);
+        int selectedImageIndex = validatedKtx2ImageIndex(request, imageCount);
         int[] mipMapSizes = new int[levelCount];
         byte[][] decodedLevels = new byte[levelCount][];
         long totalSize = 0;
         for (int i = 0; i < levelCount; i++) {
             Ktx2LevelIndex level = container.getLevel(i);
-            decodedLevels[i] = ktx2LevelPayload(source, header, level);
+            byte[] levelPayload = ktx2LevelPayload(source, header, level);
+            if (imageCount == 1) {
+                decodedLevels[i] = levelPayload;
+            } else {
+                if (levelPayload.length % imageCount != 0) {
+                    throw new BasisDecodeException(
+                            "KTX2 array mip payload cannot be divided into "
+                                    + imageCount + " images");
+                }
+                int imageSize = levelPayload.length / imageCount;
+                decodedLevels[i] = new byte[imageSize];
+                System.arraycopy(
+                        levelPayload,
+                        Math.multiplyExact(selectedImageIndex, imageSize),
+                        decodedLevels[i],
+                        0,
+                        imageSize);
+            }
             mipMapSizes[i] = decodedLevels[i].length;
             totalSize = checkedAdd(totalSize, decodedLevels[i].length);
         }
@@ -765,48 +823,8 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                     height,
                     imageCount,
                     selectedImageIndex);
-            if (outputTarget.isAstcLdr()) {
-                decodedLevels[levelIndex] = UastcLdrAstcTranscoder.transcodeToAstc(
-                        uastcBlocks,
-                        width,
-                        height);
-            } else if (isEtcColorTarget(outputTarget)) {
-                decodedLevels[levelIndex] = UastcLdrAstcTranscoder.transcodeToEtc(
-                        uastcBlocks,
-                        width,
-                        height,
-                        outputTarget);
-            } else if (isEacTarget(outputTarget)) {
-                decodedLevels[levelIndex] = UastcLdrAstcTranscoder.transcodeToEac(
-                        uastcBlocks,
-                        width,
-                        height,
-                        outputTarget);
-            } else if (outputTarget == BasisTranscodeTarget.BC1) {
-                decodedLevels[levelIndex] = UastcLdrAstcTranscoder.transcodeToBc1(
-                        uastcBlocks,
-                        width,
-                        height);
-            } else if (outputTarget == BasisTranscodeTarget.BC3) {
-                decodedLevels[levelIndex] = UastcLdrAstcTranscoder.transcodeToBc3(
-                        uastcBlocks,
-                        width,
-                        height);
-            } else if (outputTarget == BasisTranscodeTarget.BC7) {
-                decodedLevels[levelIndex] = UastcLdrAstcTranscoder.transcodeToBc7(
-                        uastcBlocks,
-                        width,
-                        height);
-            } else if (isBc4Bc5Target(outputTarget)) {
-                decodedLevels[levelIndex] = UastcLdrAstcTranscoder.transcodeToBc4Bc5(
-                        uastcBlocks,
-                        width,
-                        height,
-                        outputTarget);
-            } else {
-                byte[] rgbaLevel = UastcLdrAstcTranscoder.transcodeToRgba(uastcBlocks, width, height);
-                decodedLevels[levelIndex] = convertRgbaLevel(rgbaLevel, width, height, outputTarget);
-            }
+            decodedLevels[levelIndex] = transcodeUastcLdrLevel(
+                    uastcBlocks, width, height, outputTarget);
             mipMapSizes[levelIndex] = decodedLevels[levelIndex].length;
             totalSize = checkedAdd(totalSize, decodedLevels[levelIndex].length);
         }
@@ -828,6 +846,119 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 resolveKtx2BasisColorSpace(container, request.isLinearColorSpace()),
                 imageCount,
                 levelCount);
+    }
+
+    private static List<BasisDecodeResult> decodeAllKtx2UastcLdr(
+            BasisDecodeRequest request,
+            byte[] source,
+            Ktx2Container container,
+            BasisTranscodeTarget outputTarget) {
+        BasisTranscodeTarget requestedTarget = selectUastcLdrJavaTarget(request);
+        if (requestedTarget != outputTarget) {
+            throw unsupportedTarget(requestedTarget);
+        }
+
+        Ktx2Header header = container.getHeader();
+        int levelCount = header.getLevelCount();
+        int imageCount = ktx2ImageCount(header);
+        byte[][][] decodedImages = new byte[imageCount][levelCount][];
+        int[] mipMapSizes = new int[levelCount];
+        long totalSize = 0;
+
+        for (int levelIndex = 0; levelIndex < levelCount; levelIndex++) {
+            Ktx2LevelIndex level = container.getLevel(levelIndex);
+            int width = Math.max(1, header.getPixelWidth() >>> levelIndex);
+            int height = Math.max(1, header.getPixelHeight() >>> levelIndex);
+            int blocksX = Math.max(1, (width + 3) / 4);
+            int blocksY = Math.max(1, (height + 3) / 4);
+            int imageBytes = Math.multiplyExact(Math.multiplyExact(blocksX, blocksY), 16);
+            byte[] levelPayload = ktx2LevelPayload(source, header, level);
+            if (levelPayload.length != Math.multiplyExact(imageBytes, imageCount)) {
+                throw new BasisDecodeException(
+                        "KTX2 UASTC level decoded size does not match image count");
+            }
+
+            int expectedOutputSize = -1;
+            for (int imageIndex = 0; imageIndex < imageCount; imageIndex++) {
+                byte[] uastcBlocks = new byte[imageBytes];
+                System.arraycopy(
+                        levelPayload,
+                        Math.multiplyExact(imageIndex, imageBytes),
+                        uastcBlocks,
+                        0,
+                        imageBytes);
+                byte[] decodedLevel = transcodeUastcLdrLevel(
+                        uastcBlocks, width, height, outputTarget);
+                if (expectedOutputSize < 0) {
+                    expectedOutputSize = decodedLevel.length;
+                } else if (decodedLevel.length != expectedOutputSize) {
+                    throw new BasisDecodeException(
+                            "KTX2 array layers produced inconsistent mip sizes");
+                }
+                decodedImages[imageIndex][levelIndex] = decodedLevel;
+            }
+            mipMapSizes[levelIndex] = expectedOutputSize;
+            totalSize = checkedAdd(totalSize, expectedOutputSize);
+        }
+
+        int decodedImageSize = checkedToInt(totalSize);
+        BasisColorSpace colorSpace = resolveKtx2BasisColorSpace(
+                container, request.isLinearColorSpace());
+        List<BasisDecodeResult> results = new ArrayList<>(imageCount);
+        for (int imageIndex = 0; imageIndex < imageCount; imageIndex++) {
+            ByteBuffer decoded = request.getAllocator().apply(decodedImageSize);
+            if (decoded == null) {
+                throw new BasisDecodeException("Allocator returned null ByteBuffer");
+            }
+            for (byte[] decodedLevel : decodedImages[imageIndex]) {
+                decoded.put(decodedLevel);
+            }
+            decoded.flip();
+            results.add(new BasisDecodeResult(
+                    header.getPixelWidth(),
+                    header.getPixelHeight(),
+                    decoded,
+                    outputTarget.getImageFormat(),
+                    mipMapSizes.clone(),
+                    colorSpace,
+                    imageCount,
+                    levelCount));
+        }
+        return results;
+    }
+
+    private static byte[] transcodeUastcLdrLevel(
+            byte[] uastcBlocks,
+            int width,
+            int height,
+            BasisTranscodeTarget outputTarget) {
+        if (outputTarget.isAstcLdr()) {
+            return UastcLdrAstcTranscoder.transcodeToAstc(uastcBlocks, width, height);
+        }
+        if (isEtcColorTarget(outputTarget)) {
+            return UastcLdrAstcTranscoder.transcodeToEtc(
+                    uastcBlocks, width, height, outputTarget);
+        }
+        if (isEacTarget(outputTarget)) {
+            return UastcLdrAstcTranscoder.transcodeToEac(
+                    uastcBlocks, width, height, outputTarget);
+        }
+        if (outputTarget == BasisTranscodeTarget.BC1) {
+            return UastcLdrAstcTranscoder.transcodeToBc1(uastcBlocks, width, height);
+        }
+        if (outputTarget == BasisTranscodeTarget.BC3) {
+            return UastcLdrAstcTranscoder.transcodeToBc3(uastcBlocks, width, height);
+        }
+        if (outputTarget == BasisTranscodeTarget.BC7) {
+            return UastcLdrAstcTranscoder.transcodeToBc7(uastcBlocks, width, height);
+        }
+        if (isBc4Bc5Target(outputTarget)) {
+            return UastcLdrAstcTranscoder.transcodeToBc4Bc5(
+                    uastcBlocks, width, height, outputTarget);
+        }
+        byte[] rgbaLevel = UastcLdrAstcTranscoder.transcodeToRgba(
+                uastcBlocks, width, height);
+        return convertRgbaLevel(rgbaLevel, width, height, outputTarget);
     }
 
     private static byte[] ktx2UastcImagePayload(
