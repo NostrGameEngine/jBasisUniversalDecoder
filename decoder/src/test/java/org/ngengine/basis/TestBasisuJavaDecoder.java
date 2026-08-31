@@ -955,6 +955,20 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
+    public void testDesktopBcnProfileSelectsBc7ForUastc() {
+        BasisuJavaDecoder decoder = new BasisuJavaDecoder();
+        byte[] payload = loadFixture("fixtures/ktx2/kodim_uastc4x4.ktx2");
+
+        BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
+                .platform(BasisPlatformCapabilities.desktopBcn())
+                .allocator(ByteBuffer::allocate)
+                .build());
+
+        assertEquals(BasisImageFormat.BC7, result.getImageFormat());
+        assertEquals(4_096, result.getPixelData().remaining());
+    }
+
+    @Test
     public void testAndroidEtc2ProfileSelectsEtc2ForXuastc() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/base_xuastc_zstd.ktx2");

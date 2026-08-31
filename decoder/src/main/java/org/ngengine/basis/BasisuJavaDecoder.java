@@ -2350,6 +2350,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                     BasisTranscodeTarget.ETC2_NO_ALPHA,
                     BasisTranscodeTarget.BC1,
                     BasisTranscodeTarget.BC3,
+                    BasisTranscodeTarget.BC7,
                     BasisTranscodeTarget.BC5,
                     BasisTranscodeTarget.BC4,
                     BasisTranscodeTarget.ETC2_EAC_R11,
