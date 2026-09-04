@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Small Zstandard frame decoder for Basis Universal side streams.
  *
- * <p>This is a Java 11/Android/TeaVM-safe byte-array decoder. It is adapted
+ * <p>This is a portable Java byte-array decoder. It is adapted
  * from the Zstandard format specification and the MIT-licensed fzstd decoder
  * by Arjun Barrett, with native/streaming features intentionally omitted.</p>
  */

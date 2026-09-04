@@ -26,7 +26,9 @@ public class TestBasisDecoderFactory {
         assertEquals(0, fake.decodeCalls);
 
         byte[] payload = new byte[] {0x00};
-        BasisDecodeRequest request = BasisDecodeRequest.builder(payload).build();
+        BasisDecodeRequest request = BasisDecodeRequest.builder(payload)
+                .target(BasisTranscodeTarget.RGBA8)
+                .build();
         byte[] expected = new byte[] {1, 2, 3, 4};
         fake.nextResult = new BasisDecodeResult(
                 2,
@@ -47,7 +49,9 @@ public class TestBasisDecoderFactory {
         BasisDecoder decoder = BasisDecoderFactory.missingBackend();
         Assertions.assertFalse(decoder.isAvailable());
         assertThrows(BasisDecodeException.class, () -> decoder.decode(
-                BasisDecodeRequest.builder(new byte[] {1, 2, 3}).build()));
+                BasisDecodeRequest.builder(new byte[] {1, 2, 3})
+                        .target(BasisTranscodeTarget.RGBA8)
+                        .build()));
     }
 
     public static final class FakeDecoder implements BasisDecoder {

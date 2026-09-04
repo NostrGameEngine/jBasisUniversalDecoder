@@ -26,7 +26,7 @@ public final class ParityVerifier {
         private final int imageIndex;
 
         private ParityCase(String inputFixture, String goldFixture) {
-            this(inputFixture, goldFixture, null, 0);
+            this(inputFixture, goldFixture, BasisTranscodeTarget.RGBA8, 0);
         }
 
         private ParityCase(String inputFixture, String goldFixture, BasisTranscodeTarget target) {
@@ -281,10 +281,8 @@ public final class ParityVerifier {
 
             try {
                 BasisDecodeRequest.Builder builder = BasisDecodeRequest.builder(input)
+                        .target(parityCase.target)
                         .imageIndex(parityCase.imageIndex);
-                if (parityCase.target != null) {
-                    builder.target(parityCase.target);
-                }
                 BasisDecodeRequest request = builder.build();
                 BasisDecodeResult result = decoder.decode(request);
                 byte[] decoded = byteBufferToArray(result.getPixelData());

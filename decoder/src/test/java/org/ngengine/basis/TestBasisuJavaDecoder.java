@@ -135,7 +135,7 @@ public class TestBasisuJavaDecoder {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/supercompressed-unsupported-ktx2.bin");
         BasisDecodeException ex = assertThrows(BasisDecodeException.class,
-                () -> decoder.decode(BasisDecodeRequest.from(payload)));
+                () -> decoder.decode(BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
         assertTrue(ex.getMessage().contains("Unsupported KTX2 supercompression"));
     }
 
@@ -145,7 +145,8 @@ public class TestBasisuJavaDecoder {
         byte[] payload = loadFixture("fixtures/uncompressed-rgba8-ktx2.bin");
         patchVkFormat(payload, 12345);
 
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -355,13 +356,12 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
-    public void testDesktopBcnProfileSelectsBc1ForEtc1s() {
+    public void testExplicitBc1TargetTranscodesEtc1s() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/kodim23.ktx2");
 
         BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
-                .platform(BasisPlatformCapabilities.desktopBcn())
-                .preferredFallback(BasisTranscodeTarget.RGBA8)
+                .target(BasisTranscodeTarget.BC1)
                 .allocator(ByteBuffer::allocate)
                 .build());
 
@@ -372,12 +372,12 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
-    public void testAndroidEtcProfileSelectsRealEtc2OutputForEtc1s() {
+    public void testExplicitEtc2TargetTranscodesEtc1s() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/kodim23.ktx2");
 
         BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
-                .platform(BasisPlatformCapabilities.androidEtc2())
+                .target(BasisTranscodeTarget.ETC2)
                 .allocator(ByteBuffer::allocate)
                 .build());
 
@@ -601,13 +601,12 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
-    public void testDesktopS3tcProfileSelectsBc3ForEtc1sKtx2Alpha() {
+    public void testExplicitBc3TargetTranscodesEtc1sKtx2Alpha() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/kodim23_alpha.ktx2");
 
         BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
-                .platform(BasisPlatformCapabilities.desktopS3tc())
-                .preferredFallback(BasisTranscodeTarget.RGBA8)
+                .target(BasisTranscodeTarget.BC3)
                 .allocator(ByteBuffer::allocate)
                 .build());
 
@@ -926,12 +925,12 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
-    public void testAndroidAstcProfileSelectsAstcForMatchingXuastc5x4() {
+    public void testExplicitAstcTargetTranscodesMatchingXuastc5x4() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/base_xuastc_zstd.ktx2");
 
         BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
-                .platform(BasisPlatformCapabilities.androidAstc())
+                .target(BasisTranscodeTarget.ASTC_LDR_5X4)
                 .allocator(ByteBuffer::allocate)
                 .build());
 
@@ -941,12 +940,12 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
-    public void testDesktopBcnProfileSelectsImplementedBcTargetForXuastc() {
+    public void testExplicitBc7TargetTranscodesXuastc() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/base_xuastc_zstd.ktx2");
 
         BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
-                .platform(BasisPlatformCapabilities.desktopBcn())
+                .target(BasisTranscodeTarget.BC7)
                 .allocator(ByteBuffer::allocate)
                 .build());
 
@@ -955,12 +954,12 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
-    public void testDesktopBcnProfileSelectsBc7ForUastc() {
+    public void testExplicitBc7TargetTranscodesUastc() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/kodim_uastc4x4.ktx2");
 
         BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
-                .platform(BasisPlatformCapabilities.desktopBcn())
+                .target(BasisTranscodeTarget.BC7)
                 .allocator(ByteBuffer::allocate)
                 .build());
 
@@ -969,12 +968,12 @@ public class TestBasisuJavaDecoder {
     }
 
     @Test
-    public void testAndroidEtc2ProfileSelectsEtc2ForXuastc() {
+    public void testExplicitEtc2TargetTranscodesXuastc() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/ktx2/base_xuastc_zstd.ktx2");
 
         BasisDecodeResult result = decoder.decode(BasisDecodeRequest.builder(payload)
-                .platform(BasisPlatformCapabilities.androidEtc2())
+                .target(BasisTranscodeTarget.ETC2)
                 .allocator(ByteBuffer::allocate)
                 .build());
 
@@ -1901,7 +1900,8 @@ public class TestBasisuJavaDecoder {
         ByteBuffer header = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
         header.putInt(16, 4);
 
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -1911,7 +1911,8 @@ public class TestBasisuJavaDecoder {
         ByteBuffer header = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
         header.putLong(Ktx2Constants.KTX2_HEADER_SIZE, Integer.MAX_VALUE);
 
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -1921,7 +1922,8 @@ public class TestBasisuJavaDecoder {
         ByteBuffer header = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
         header.putLong(Ktx2Constants.KTX2_HEADER_SIZE, Long.MIN_VALUE);
 
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -1935,7 +1937,8 @@ public class TestBasisuJavaDecoder {
 
         assertThrows(
                 BasisDecodeException.class,
-                () -> decoder.decode(BasisDecodeRequest.from(payloadOverflow)));
+                () -> decoder.decode(BasisDecodeRequest.from(
+                        payloadOverflow, BasisTranscodeTarget.RGBA8)));
 
         // Restore payload and verify 32-bit boundary rejection through the parser facade.
         byte[] payloadBoundary = loadFixture("fixtures/uncompressed-rgba8-ktx2.bin");
@@ -1943,7 +1946,8 @@ public class TestBasisuJavaDecoder {
         header.putInt(20, Integer.MIN_VALUE); // 0x80000000 in unsigned space -> exceeds signed int range
         assertThrows(
                 BasisDecodeException.class,
-                () -> decoder.decode(BasisDecodeRequest.from(payloadBoundary)));
+                () -> decoder.decode(BasisDecodeRequest.from(
+                        payloadBoundary, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -1954,7 +1958,8 @@ public class TestBasisuJavaDecoder {
         // SGD offset field is at byte 64 in the 80-byte KTX2 header.
         header.putLong(64, Long.MIN_VALUE);
 
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -2021,7 +2026,8 @@ public class TestBasisuJavaDecoder {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
 
         assertThrows(BasisDecodeException.class,
-                () -> decoder.decode(BasisDecodeRequest.from(new byte[0])));
+                () -> decoder.decode(BasisDecodeRequest.from(
+                        new byte[0], BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -2111,7 +2117,8 @@ public class TestBasisuJavaDecoder {
         // Invalid for a non-empty range before the KTX2 header section.
         header.putInt(60, 1);
 
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
@@ -2121,14 +2128,16 @@ public class TestBasisuJavaDecoder {
                 loadFixture("fixtures/uncompressed-rgba8-ktx2.bin"),
                 Ktx2Constants.KTX2_HEADER_SIZE + 12);
 
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     @Test
     public void testRejectsInvalidMagic() {
         BasisuJavaDecoder decoder = new BasisuJavaDecoder();
         byte[] payload = loadFixture("fixtures/invalid.ktx2");
-        assertThrows(BasisDecodeException.class, () -> decoder.decode(BasisDecodeRequest.from(payload)));
+        assertThrows(BasisDecodeException.class, () -> decoder.decode(
+                BasisDecodeRequest.from(payload, BasisTranscodeTarget.RGBA8)));
     }
 
     private static void patchVkFormat(byte[] payload, int vkFormat) {

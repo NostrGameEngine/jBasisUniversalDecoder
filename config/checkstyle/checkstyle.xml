@@ -8,7 +8,7 @@
     Based on google_checks.xml found in the checkstyle repository:
     https://github.com/checkstyle/checkstyle/blob/master/src/main/resources/google_checks.xml
 
-    Adapted for changes by the jMonkeyEngine contribution guidelines document.
+    Adapted for this project's Java 11 source and compatibility requirements.
  -->
 
 <module name="Checker">
@@ -308,8 +308,7 @@
 
         <!--
 
-        Commented out javadoc checks, these produce a lot (4k in jme3-core) of warnings so for now, might
-        be too noisy
+        Javadoc checks are currently disabled because they produce too much noise.
 
         <module name="InvalidJavadocPosition" />
         <module name="JavadocTagContinuationIndentation" />

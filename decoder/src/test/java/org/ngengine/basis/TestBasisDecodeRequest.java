@@ -9,7 +9,9 @@ public class TestBasisDecodeRequest {
 
     @Test
     public void testDefaultBuilderValues() {
-        BasisDecodeRequest request = BasisDecodeRequest.builder(new byte[] {0x00, 0x01}).build();
+        BasisDecodeRequest request = BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                .target(BasisTranscodeTarget.RGBA8)
+                .build();
 
         assertEquals(1, request.getThreadCount());
         assertEquals(false, request.isStrictMode());
@@ -23,11 +25,13 @@ public class TestBasisDecodeRequest {
     public void testThreadCountIsValidatedInBuilder() {
         assertThrows(IllegalArgumentException.class,
                 () -> BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                        .target(BasisTranscodeTarget.RGBA8)
                         .threadCount(0)
                         .build());
 
         assertThrows(IllegalArgumentException.class,
                 () -> BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                        .target(BasisTranscodeTarget.RGBA8)
                         .threadCount(128)
                         .build());
     }
@@ -35,6 +39,7 @@ public class TestBasisDecodeRequest {
     @Test
     public void testPresetAndStrictModePassThrough() {
         BasisDecodeRequest request = BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                .target(BasisTranscodeTarget.BC7)
                 .threadCount(2)
                 .imageIndex(3)
                 .decodeFlags(Ktx2DecodeFlag.cDecodeFlagXUASTCLDRDisableFastBC7Transcoding)
@@ -51,17 +56,20 @@ public class TestBasisDecodeRequest {
         assertEquals(true, request.isStrictMode());
         assertEquals("test", request.getTranscodePreset());
         assertEquals(9, request.getQualityLevel());
+        assertEquals(BasisTranscodeTarget.BC7, request.getTarget());
     }
 
     @Test
     public void testQualityLevelIsValidatedInBuilder() {
         assertThrows(IllegalArgumentException.class,
                 () -> BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                        .target(BasisTranscodeTarget.RGBA8)
                         .qualityLevel(-1)
                         .build());
 
         assertThrows(IllegalArgumentException.class,
                 () -> BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                        .target(BasisTranscodeTarget.RGBA8)
                         .qualityLevel(11)
                         .build());
     }
@@ -70,6 +78,7 @@ public class TestBasisDecodeRequest {
     public void testImageIndexIsValidatedInBuilder() {
         assertThrows(IllegalArgumentException.class,
                 () -> BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                        .target(BasisTranscodeTarget.RGBA8)
                         .imageIndex(-1)
                         .build());
     }
@@ -78,7 +87,14 @@ public class TestBasisDecodeRequest {
     public void testDecodeFlagsAreValidatedInBuilder() {
         assertThrows(IllegalArgumentException.class,
                 () -> BasisDecodeRequest.builder(new byte[] {0x00, 0x01})
+                        .target(BasisTranscodeTarget.RGBA8)
                         .decodeFlags(1 << 29)
                         .build());
+    }
+
+    @Test
+    public void testTargetIsRequired() {
+        assertThrows(NullPointerException.class,
+                () -> BasisDecodeRequest.builder(new byte[] {0x00, 0x01}).build());
     }
 }

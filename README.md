@@ -8,7 +8,7 @@ Standalone Java decoder/transcoder port for Basis Universal, and Gradle plugin f
 ## Modules
 
 - `decoder`: pure Java runtime API and implementation. This is the artifact to
-  embed in applications or a future jMonkeyEngine texture loader.
+  embed in applications and engine integrations.
 - `parity-tests`: end-to-end parity harness. It builds the official `basisu`
   tool from the tracked `basis_universal` submodule in `build/`, encodes test
   PNGs, unpacks them with the official tool, decodes the same payload with Java,
@@ -60,6 +60,12 @@ For local snapshot publication, run:
 ```
 
 ## Supported formats
+
+The runtime decoder is platform and rendering-engine agnostic. Callers must
+choose a `BasisTranscodeTarget` explicitly; the decoder never inspects
+GPU capabilities, identifies a runtime platform, or selects a fallback format.
+Platform-specific target ordering belongs in the consuming engine or
+application.
 
 - `.basis` ETC1S to RGBA8, RGB565/BGR565/RGBA4444, ETC1/ETC2,
   ETC2 EAC R11/RG11, BC1/BC3/BC4/BC5/BC7

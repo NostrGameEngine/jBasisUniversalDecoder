@@ -15,32 +15,6 @@ import java.util.zip.Inflater;
  * It is intentionally strict and rejects payloads/features it does not implement.
  */
 public final class BasisuJavaDecoder implements BasisDecoder {
-    private static final BasisTranscodeTarget[] JAVA_OUTPUT_TARGETS = {
-        BasisTranscodeTarget.RGBA8,
-        BasisTranscodeTarget.RGBA4444,
-        BasisTranscodeTarget.RGB565,
-        BasisTranscodeTarget.BGR565
-    };
-    private static final BasisTranscodeTarget[] ETC1S_OUTPUT_TARGETS = {
-        BasisTranscodeTarget.BC3,
-        BasisTranscodeTarget.BC5,
-        BasisTranscodeTarget.BC4,
-        BasisTranscodeTarget.BC1,
-        BasisTranscodeTarget.ETC2,
-        BasisTranscodeTarget.ETC2_NO_ALPHA,
-        BasisTranscodeTarget.ETC2_EAC_R11,
-        BasisTranscodeTarget.ETC2_EAC_RG11,
-        BasisTranscodeTarget.ETC1,
-        BasisTranscodeTarget.RGBA8,
-        BasisTranscodeTarget.RGBA4444,
-        BasisTranscodeTarget.RGB565,
-        BasisTranscodeTarget.BGR565
-    };
-    private static final BasisTranscodeTarget[] HDR_ASTC_OUTPUT_TARGETS = {
-        BasisTranscodeTarget.ASTC_HDR_4X4,
-        BasisTranscodeTarget.ASTC_HDR_6X6
-    };
-
     @Override
     public boolean isAvailable() {
         return true;
@@ -76,10 +50,10 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 return decodeBasisHdrAstc(request, source, container);
             }
             if (container.getTextureFormat().isHdr()) {
-                throw unsupportedTarget(selectHdrAstcJavaTarget(container.getTextureFormat(), request));
+                throw unsupportedTarget(requestedTarget(request));
             }
             if (container.getTextureFormat() == Ktx2BasisTextureFormat.cETC1S) {
-                throw unsupportedTarget(selectBasisEtc1sJavaTarget(container, request));
+                throw unsupportedTarget(requestedTarget(request));
             }
             throw new BasisDecodeException(
                     "Unsupported Basis texture format "
@@ -109,7 +83,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
         }
         if (isUastcLdrRgbaRequest(container, request)) {
             return decodeAllKtx2UastcLdr(
-                    request, source, container, selectUastcLdrJavaTarget(request));
+                    request, source, container, requestedTarget(request));
         }
 
         List<BasisDecodeResult> results = new ArrayList<>(imageCount);
@@ -150,12 +124,9 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             return decodeKtx2HdrAstc(request, source, container);
         }
         if (container.getDataFormatDescriptor() != null && container.getBasisTextureFormat().isHdr()) {
-            throw unsupportedTarget(selectHdrAstcJavaTarget(container.getBasisTextureFormat(), request));
+            throw unsupportedTarget(requestedTarget(request));
         }
-        BasisTranscodeTarget selectedTranscodeTarget = container.getDataFormatDescriptor() != null
-                && container.getBasisTextureFormat() == Ktx2BasisTextureFormat.cETC1S
-                ? selectKtx2Etc1sJavaTarget(container, request)
-                : selectXuastcOrJavaTarget(container, request);
+        BasisTranscodeTarget selectedTranscodeTarget = requestedTarget(request);
         if (isBasisSupercompressedPayload(container)
                 && selectedTranscodeTarget != BasisTranscodeTarget.RGBA8) {
             throw unsupportedTarget(selectedTranscodeTarget);
@@ -175,7 +146,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                             + detail);
         }
 
-        BasisTranscodeTarget selectedTarget = selectExplicitJavaTarget(request, true);
+        BasisTranscodeTarget selectedTarget = requestedTarget(request);
         BasisImageFormat imageFormat = resolveImageFormat(header.getVkFormat(), selectedTarget);
         if (imageFormat == null) {
             throw new BasisDecodeException(
@@ -245,8 +216,8 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 || container.getBasisTextureFormat() != Ktx2BasisTextureFormat.cETC1S) {
             return false;
         }
-        BasisTranscodeTarget target = selectKtx2Etc1sJavaTarget(container, request);
-        return target == null || isRgbaOrPackedTarget(target);
+        BasisTranscodeTarget target = requestedTarget(request);
+        return isRgbaOrPackedTarget(target);
     }
 
     private static boolean isEtc1sEtc1Request(Ktx2Container container, BasisDecodeRequest request) {
@@ -255,31 +226,31 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 || container.getBasisTextureFormat() != Ktx2BasisTextureFormat.cETC1S) {
             return false;
         }
-        return isEtc1sBlockTarget(selectKtx2Etc1sJavaTarget(container, request));
+        return isEtc1sBlockTarget(requestedTarget(request));
     }
 
     private static boolean isBasisEtc1sRgbaRequest(BasisContainer container, BasisDecodeRequest request) {
         return container.getTextureFormat() == Ktx2BasisTextureFormat.cETC1S
-                && isRgbaOrPackedTarget(selectBasisEtc1sJavaTarget(container, request));
+                && isRgbaOrPackedTarget(requestedTarget(request));
     }
 
     private static boolean isBasisEtc1sEtc1Request(BasisContainer container, BasisDecodeRequest request) {
         return container.getTextureFormat() == Ktx2BasisTextureFormat.cETC1S
-                && isEtc1sBlockTarget(selectBasisEtc1sJavaTarget(container, request));
+                && isEtc1sBlockTarget(requestedTarget(request));
     }
 
     private static boolean isBasisUastcLdrRequest(BasisContainer container, BasisDecodeRequest request) {
         if (container.getTextureFormat() != Ktx2BasisTextureFormat.cUASTC_LDR_4x4) {
             return false;
         }
-        BasisTranscodeTarget target = selectUastcLdrJavaTarget(request);
+        BasisTranscodeTarget target = requestedTarget(request);
         return isUastcLdrJavaTarget(target) || target == BasisTranscodeTarget.ASTC_LDR_4X4;
     }
 
     private static boolean isBasisHdrAstcRequest(BasisContainer container, BasisDecodeRequest request) {
         Ktx2BasisTextureFormat format = container.getTextureFormat();
         return matchingHdrAstcTarget(format) != null
-                && isHdrAstcJavaTarget(format, selectHdrAstcJavaTarget(format, request));
+                && isHdrAstcJavaTarget(format, requestedTarget(request));
     }
 
     private static boolean isXuastcLdrRgbaRequest(Ktx2Container container, BasisDecodeRequest request) {
@@ -289,9 +260,8 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 || !container.getBasisTextureFormat().isXUastcLdr()) {
             return false;
         }
-        BasisTranscodeTarget target = selectXuastcJavaTarget(container, request);
-        return target == null
-                || isXuastcLdrJavaTarget(target)
+        BasisTranscodeTarget target = requestedTarget(request);
+        return isXuastcLdrJavaTarget(target)
                 || isXuastcBc7Target(container, target)
                 || isXuastcFastBc7Target(container, request, target);
     }
@@ -303,7 +273,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 || !container.getBasisTextureFormat().isXUastcLdr()) {
             return false;
         }
-        return selectXuastcJavaTarget(container, request).isAstcLdr();
+        return requestedTarget(request).isAstcLdr();
     }
 
     private static boolean isUastcLdrAstcRequest(Ktx2Container container, BasisDecodeRequest request) {
@@ -317,7 +287,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 && scheme != Ktx2SupercompressionScheme.DEFLATE) {
             return false;
         }
-        return selectUastcLdrJavaTarget(request).isAstcLdr();
+        return requestedTarget(request).isAstcLdr();
     }
 
     private static boolean isUastcLdrRgbaRequest(Ktx2Container container, BasisDecodeRequest request) {
@@ -331,7 +301,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 && scheme != Ktx2SupercompressionScheme.DEFLATE) {
             return false;
         }
-        return isUastcLdrJavaTarget(selectUastcLdrJavaTarget(request));
+        return isUastcLdrJavaTarget(requestedTarget(request));
     }
 
     private static boolean isKtx2HdrAstcRequest(Ktx2Container container, BasisDecodeRequest request) {
@@ -343,7 +313,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
         if (container.getBasisTextureFormat() == Ktx2BasisTextureFormat.cUASTC_HDR_6x6_INTERMEDIATE) {
             return isHdr6x6IntermediateScheme(scheme)
                     && isHdrAstcJavaTarget(container.getBasisTextureFormat(),
-                    selectHdrAstcJavaTarget(container.getBasisTextureFormat(), request));
+                    requestedTarget(request));
         }
         if (scheme != Ktx2SupercompressionScheme.NONE
                 && scheme != Ktx2SupercompressionScheme.ZSTANDARD
@@ -351,7 +321,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             return false;
         }
         return isHdrAstcJavaTarget(container.getBasisTextureFormat(),
-                selectHdrAstcJavaTarget(container.getBasisTextureFormat(), request));
+                requestedTarget(request));
     }
 
     private static boolean isHdr6x6IntermediateScheme(Ktx2SupercompressionScheme scheme) {
@@ -363,14 +333,14 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             BasisDecodeRequest request,
             byte[] source,
             Ktx2Container container) {
-        return decodeKtx2Etc1s(request, source, container, selectKtx2Etc1sJavaTarget(container, request));
+        return decodeKtx2Etc1s(request, source, container, requestedTarget(request));
     }
 
     private static BasisDecodeResult decodeKtx2Etc1sEtc1(
             BasisDecodeRequest request,
             byte[] source,
             Ktx2Container container) {
-        return decodeKtx2Etc1s(request, source, container, selectKtx2Etc1sJavaTarget(container, request));
+        return decodeKtx2Etc1s(request, source, container, requestedTarget(request));
     }
 
     private static BasisDecodeResult decodeKtx2Etc1s(
@@ -643,15 +613,15 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             BasisDecodeRequest request,
             byte[] source,
             Ktx2Container container) {
-        return decodeKtx2XuastcLdr(request, source, container, selectXuastcJavaTarget(container, request));
+        return decodeKtx2XuastcLdr(request, source, container, requestedTarget(request));
     }
 
     private static BasisDecodeResult decodeKtx2XuastcLdrAstc(
             BasisDecodeRequest request,
             byte[] source,
             Ktx2Container container) {
-        BasisTranscodeTarget outputTarget = selectXuastcJavaTarget(container, request);
-        BasisTranscodeTarget matchingTarget = astcTargetForXuastc(container);
+        BasisTranscodeTarget outputTarget = requestedTarget(request);
+        BasisTranscodeTarget matchingTarget = matchingAstcTargetForXuastc(container);
         if (matchingTarget == null || outputTarget != matchingTarget) {
             throw unsupportedTarget(outputTarget);
         }
@@ -791,7 +761,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             BasisDecodeRequest request,
             byte[] source,
             Ktx2Container container) {
-        return decodeKtx2UastcLdr(request, source, container, selectUastcLdrJavaTarget(request));
+        return decodeKtx2UastcLdr(request, source, container, requestedTarget(request));
     }
 
     private static BasisDecodeResult decodeKtx2UastcLdr(
@@ -799,7 +769,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             byte[] source,
             Ktx2Container container,
             BasisTranscodeTarget outputTarget) {
-        BasisTranscodeTarget requestedTarget = selectUastcLdrJavaTarget(request);
+        BasisTranscodeTarget requestedTarget = requestedTarget(request);
         if (requestedTarget != outputTarget) {
             throw unsupportedTarget(requestedTarget);
         }
@@ -853,7 +823,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             byte[] source,
             Ktx2Container container,
             BasisTranscodeTarget outputTarget) {
-        BasisTranscodeTarget requestedTarget = selectUastcLdrJavaTarget(request);
+        BasisTranscodeTarget requestedTarget = requestedTarget(request);
         if (requestedTarget != outputTarget) {
             throw unsupportedTarget(requestedTarget);
         }
@@ -1084,7 +1054,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             Ktx2Container container) {
         Ktx2Header header = container.getHeader();
         Ktx2BasisTextureFormat sourceFormat = container.getBasisTextureFormat();
-        BasisTranscodeTarget outputTarget = selectHdrAstcJavaTarget(sourceFormat, request);
+        BasisTranscodeTarget outputTarget = requestedTarget(request);
         BasisTranscodeTarget astcTarget = matchingHdrAstcTarget(sourceFormat);
         if (!isHdrAstcJavaTarget(sourceFormat, outputTarget)) {
             throw unsupportedTarget(outputTarget);
@@ -1188,14 +1158,14 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             BasisDecodeRequest request,
             byte[] source,
             BasisContainer container) {
-        return decodeBasisEtc1s(request, source, container, selectBasisEtc1sJavaTarget(container, request));
+        return decodeBasisEtc1s(request, source, container, requestedTarget(request));
     }
 
     private static BasisDecodeResult decodeBasisEtc1sEtc1(
             BasisDecodeRequest request,
             byte[] source,
             BasisContainer container) {
-        return decodeBasisEtc1s(request, source, container, selectBasisEtc1sJavaTarget(container, request));
+        return decodeBasisEtc1s(request, source, container, requestedTarget(request));
     }
 
     private static BasisDecodeResult decodeBasisEtc1s(
@@ -1280,7 +1250,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             BasisDecodeRequest request,
             byte[] source,
             BasisContainer container) {
-        BasisTranscodeTarget outputTarget = selectUastcLdrJavaTarget(request);
+        BasisTranscodeTarget outputTarget = requestedTarget(request);
         Ktx2BasisSliceDesc[] imageSlices = basisUastcImageSlices(container, request.getImageIndex());
         byte[][] decodedLevels = new byte[imageSlices.length][];
         int[] mipMapSizes = new int[imageSlices.length];
@@ -1375,7 +1345,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
             byte[] source,
             BasisContainer container) {
         Ktx2BasisTextureFormat sourceFormat = container.getTextureFormat();
-        BasisTranscodeTarget outputTarget = selectHdrAstcJavaTarget(sourceFormat, request);
+        BasisTranscodeTarget outputTarget = requestedTarget(request);
         BasisTranscodeTarget astcTarget = matchingHdrAstcTarget(sourceFormat);
         if (!isHdrAstcJavaTarget(sourceFormat, outputTarget)) {
             throw unsupportedTarget(outputTarget);
@@ -2240,152 +2210,8 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 + " for the pure Java decoder");
     }
 
-    private static BasisTranscodeTarget selectJavaTarget(BasisDecodeRequest request, boolean alphaRequired) {
-        return selectJavaTarget(request, alphaRequired, JAVA_OUTPUT_TARGETS);
-    }
-
-    private static BasisTranscodeTarget selectKtx2Etc1sJavaTarget(
-            Ktx2Container container,
-            BasisDecodeRequest request) {
-        return selectJavaTarget(request, ktx2Etc1sAlphaRequired(container, request), ETC1S_OUTPUT_TARGETS);
-    }
-
-    private static BasisTranscodeTarget selectBasisEtc1sJavaTarget(
-            BasisContainer container,
-            BasisDecodeRequest request) {
-        return selectJavaTarget(request, basisEtc1sAlphaRequired(container), ETC1S_OUTPUT_TARGETS);
-    }
-
-    private static boolean ktx2Etc1sAlphaRequired(Ktx2Container container, BasisDecodeRequest request) {
-        Ktx2Etc1sGlobalData globalData = requireEtc1sGlobalData(container);
-        Ktx2Etc1sImageDesc[] imageDescriptions = globalData.getImageDescriptors();
-        int levelCount = container.getHeader().getLevelCount();
-        int imageCount = ktx2ImageCount(container.getHeader());
-        int selectedImageIndex = validatedKtx2ImageIndex(request, imageCount);
-        if (imageDescriptions.length < Math.multiplyExact(imageCount, levelCount)) {
-            throw new BasisDecodeException(
-                    "KTX2 ETC1S payload has fewer image descriptors than image levels");
-        }
-        for (int levelIndex = 0; levelIndex < levelCount; levelIndex++) {
-            if (imageDescriptions[imageLevelIndex(selectedImageIndex, levelIndex, imageCount)]
-                    .getAlphaSliceByteLength() != 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean basisEtc1sAlphaRequired(BasisContainer container) {
-        return Ktx2BasisHeaderFlag.fromMask(container.getHeader().getFlags())
-                .contains(Ktx2BasisHeaderFlag.cBASISHeaderFlagHasAlphaSlices);
-    }
-
-    private static BasisTranscodeTarget selectXuastcOrJavaTarget(
-            Ktx2Container container,
-            BasisDecodeRequest request) {
-        if (container.getDataFormatDescriptor() != null
-                && container.getBasisTextureFormat().isXUastcLdr()) {
-            return selectXuastcJavaTarget(container, request);
-        }
-        return selectJavaTarget(request, true);
-    }
-
-    private static BasisTranscodeTarget selectXuastcJavaTarget(
-            Ktx2Container container,
-            BasisDecodeRequest request) {
-        BasisTranscodeTarget matchingAstcTarget = astcTargetForXuastc(container);
-        boolean includeBc7 = isXuastcFastBc7Target(container, request, BasisTranscodeTarget.BC7)
-                || isXuastcBc7Target(container, BasisTranscodeTarget.BC7);
-        BasisTranscodeTarget[] targets;
-        if (matchingAstcTarget == null) {
-            targets = JAVA_OUTPUT_TARGETS;
-        } else if (includeBc7) {
-            targets = new BasisTranscodeTarget[] {
-                matchingAstcTarget,
-                BasisTranscodeTarget.RGBA8,
-                BasisTranscodeTarget.ETC2,
-                BasisTranscodeTarget.ETC1,
-                BasisTranscodeTarget.ETC2_NO_ALPHA,
-                BasisTranscodeTarget.BC1,
-                BasisTranscodeTarget.BC3,
-                BasisTranscodeTarget.BC7,
-                BasisTranscodeTarget.BC5,
-                BasisTranscodeTarget.BC4,
-                BasisTranscodeTarget.ETC2_EAC_R11,
-                BasisTranscodeTarget.ETC2_EAC_RG11,
-                BasisTranscodeTarget.RGBA4444,
-                BasisTranscodeTarget.RGB565,
-                BasisTranscodeTarget.BGR565
-            };
-        } else {
-            targets = new BasisTranscodeTarget[] {
-                matchingAstcTarget,
-                BasisTranscodeTarget.RGBA8,
-                BasisTranscodeTarget.ETC2,
-                BasisTranscodeTarget.ETC1,
-                BasisTranscodeTarget.ETC2_NO_ALPHA,
-                BasisTranscodeTarget.BC1,
-                BasisTranscodeTarget.BC3,
-                BasisTranscodeTarget.BC5,
-                BasisTranscodeTarget.BC4,
-                BasisTranscodeTarget.ETC2_EAC_R11,
-                BasisTranscodeTarget.ETC2_EAC_RG11,
-                BasisTranscodeTarget.RGBA4444,
-                BasisTranscodeTarget.RGB565,
-                BasisTranscodeTarget.BGR565
-            };
-        }
-        return selectJavaTarget(request, true, targets);
-    }
-
-    private static BasisTranscodeTarget selectUastcLdrJavaTarget(BasisDecodeRequest request) {
-        return selectJavaTarget(
-                request,
-                true,
-                new BasisTranscodeTarget[] {
-                    BasisTranscodeTarget.ASTC_LDR_4X4,
-                    BasisTranscodeTarget.RGBA8,
-                    BasisTranscodeTarget.ETC2,
-                    BasisTranscodeTarget.ETC1,
-                    BasisTranscodeTarget.ETC2_NO_ALPHA,
-                    BasisTranscodeTarget.BC1,
-                    BasisTranscodeTarget.BC3,
-                    BasisTranscodeTarget.BC7,
-                    BasisTranscodeTarget.BC5,
-                    BasisTranscodeTarget.BC4,
-                    BasisTranscodeTarget.ETC2_EAC_R11,
-                    BasisTranscodeTarget.ETC2_EAC_RG11,
-                    BasisTranscodeTarget.RGBA4444,
-                    BasisTranscodeTarget.RGB565,
-                    BasisTranscodeTarget.BGR565
-                });
-    }
-
-    private static BasisTranscodeTarget selectHdrAstcJavaTarget(
-            Ktx2BasisTextureFormat sourceFormat,
-            BasisDecodeRequest request) {
-        BasisTranscodeTarget matchingTarget = matchingHdrAstcTarget(sourceFormat);
-        if (matchingTarget == null) {
-            if (request.getTarget() != null) {
-                return request.getTarget();
-            }
-            if (request.getPreferredFallback() != null) {
-                return request.getPreferredFallback();
-            }
-            if (request.getPlatformCapabilities() != null
-                    && request.getPlatformCapabilities().supports(BasisTranscodeTarget.ASTC_HDR_6X6)) {
-                return BasisTranscodeTarget.ASTC_HDR_6X6;
-            }
-            return BasisTranscodeTarget.ASTC_HDR_6X6;
-        }
-        if (request.getTarget() != null) {
-            return request.getTarget();
-        }
-        if (request.getPlatformCapabilities() != null) {
-            return request.getPlatformCapabilities()
-                    .selectTarget(new BasisTranscodeTarget[] {matchingTarget}, matchingTarget, false);
-        }
-        return matchingTarget;
+    private static BasisTranscodeTarget requestedTarget(BasisDecodeRequest request) {
+        return request.getTarget();
     }
 
     private static boolean isHdrAstcJavaTarget(
@@ -2452,7 +2278,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
         return null;
     }
 
-    private static BasisTranscodeTarget astcTargetForXuastc(Ktx2Container container) {
+    private static BasisTranscodeTarget matchingAstcTargetForXuastc(Ktx2Container container) {
         Ktx2BasisTextureFormat format = container.getBasisTextureFormat();
         if (format == null || !format.isXUastcLdr()) {
             return null;
@@ -2460,35 +2286,6 @@ public final class BasisuJavaDecoder implements BasisDecoder {
         return BasisTranscodeTarget.astcLdrForBlockSize(
                 format.getBlockWidth(),
                 format.getBlockHeight());
-    }
-
-    private static BasisTranscodeTarget selectJavaTarget(
-            BasisDecodeRequest request,
-            boolean alphaRequired,
-            BasisTranscodeTarget[] implementedTargets) {
-        if (request.getTarget() != null) {
-            return request.getTarget();
-        }
-        if (request.getPlatformCapabilities() != null) {
-            return request.getPlatformCapabilities()
-                    .selectTarget(implementedTargets, request.getPreferredFallback(), alphaRequired);
-        }
-        return request.getPreferredFallback() == null
-                ? BasisTranscodeTarget.RGBA8
-                : request.getPreferredFallback();
-    }
-
-    private static BasisTranscodeTarget selectExplicitJavaTarget(
-            BasisDecodeRequest request,
-            boolean alphaRequired) {
-        if (request.getTarget() != null) {
-            return request.getTarget();
-        }
-        if (request.getPlatformCapabilities() != null) {
-            return request.getPlatformCapabilities()
-                    .selectTarget(JAVA_OUTPUT_TARGETS, request.getPreferredFallback(), alphaRequired);
-        }
-        return null;
     }
 
     private static BasisColorSpace resolveBasisColorSpace(

@@ -38,7 +38,7 @@ public final class BasisDecoderCli {
     private static final String USAGE =
             "Usage: java -cp <classpath> org.ngengine.basis.cli.BasisDecoderCli \\n"
             + "  --input <file> --output <file> "
-            + "[--format <RGBA8|BC1|BC3|BC4|BC5|BC6H|BC7|ASTC_LDR_*|ASTC_HDR_*|ETC2|ETC2_NO_ALPHA|ETC1>] \\n"
+            + "--format <RGBA8|BC1|BC3|BC4|BC5|BC6H|BC7|ASTC_LDR_*|ASTC_HDR_*|ETC2|ETC2_NO_ALPHA|ETC1> \\n"
             + "  [--linear-color-space <true|false>] [--quality <0-10>] [--threads <1-64>] \\n"
             + "  [--image-index <0+>] [--strict <true|false>] [--preset <string>] [--help]";
 
@@ -62,7 +62,7 @@ public final class BasisDecoderCli {
         if (options.containsKey("help") || options.isEmpty()) {
             out.println(USAGE);
             if (!options.containsKey("help") && options.isEmpty()) {
-                err.println("Error: --input and --output are required.");
+                err.println("Error: --input, --output, and --format are required.");
                 return 2;
             }
             return 0;
@@ -71,8 +71,8 @@ public final class BasisDecoderCli {
         try {
             String input = options.get("input");
             String output = options.get("output");
-            if (input == null || output == null) {
-                err.println("Error: --input and --output are required.");
+            if (input == null || output == null || options.get("format") == null) {
+                err.println("Error: --input, --output, and --format are required.");
                 out.println(USAGE);
                 return 2;
             }
@@ -94,15 +94,13 @@ public final class BasisDecoderCli {
 
             byte[] payload = Files.readAllBytes(Paths.get(input));
             BasisDecodeRequest.Builder builder = BasisDecodeRequest.builder(payload)
+                    .target(format)
                     .linearColorSpace(linearColorSpace)
                     .qualityLevel(quality)
                     .threadCount(threadCount)
                     .imageIndex(imageIndex)
                     .strictMode(strictMode)
                     .transcodePreset(preset);
-            if (format != null) {
-                builder.target(format);
-            }
             BasisDecodeRequest request = builder
                     .allocator(ByteBuffer::allocate)
                     .build();
@@ -111,9 +109,9 @@ public final class BasisDecoderCli {
             byte[] decodedBytes = toByteArray(decoded.getPixelData());
             Files.write(Paths.get(output), decodedBytes);
 
-            BasisImageFormat formatHint = format == null ? null : format.getImageFormat();
+            BasisImageFormat formatHint = format.getImageFormat();
             out.printf("OK format=%s width=%d height=%d bytes=%d colorSpace=%s\n",
-                    formatHint == null ? "raw" : formatHint,
+                    formatHint,
                     decoded.getWidth(),
                     decoded.getHeight(),
                     decodedBytes.length,
@@ -130,7 +128,7 @@ public final class BasisDecoderCli {
 
     private static BasisTranscodeTarget parseTarget(String value) {
         if (value == null) {
-            return null;
+            throw new IllegalArgumentException("--format is required");
         }
         try {
             return BasisTranscodeTarget.valueOf(value);

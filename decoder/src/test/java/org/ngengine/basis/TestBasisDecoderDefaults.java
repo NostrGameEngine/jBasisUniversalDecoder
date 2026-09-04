@@ -12,7 +12,8 @@ public class TestBasisDecoderDefaults {
 
     @Test
     public void testDefaultAllocatorIsHeapAllocate() {
-        BasisDecodeRequest request = BasisDecodeRequest.from(new byte[0]);
+        BasisDecodeRequest request = BasisDecodeRequest.from(
+                new byte[0], BasisTranscodeTarget.RGBA8);
         ByteBuffer buffer = request.getAllocator().apply(16);
         assertEquals(16, buffer.capacity());
         assertFalse(buffer.isDirect());
@@ -22,6 +23,7 @@ public class TestBasisDecoderDefaults {
     public void testAllocatorCanBeOverridden() {
         IntFunction<ByteBuffer> customAllocator = ByteBuffer::allocate;
         BasisDecodeRequest request = BasisDecodeRequest.builder(new byte[0])
+                .target(BasisTranscodeTarget.RGBA8)
                 .allocator(customAllocator)
                 .build();
 

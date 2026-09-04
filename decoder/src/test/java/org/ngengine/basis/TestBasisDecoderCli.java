@@ -135,6 +135,7 @@ public class TestBasisDecoderCli {
         int code = BasisDecoderCli.run(new String[]{
                 "--input", "fixtures/uncompressed-rgba8-ktx2.bin",
                 "--output", "/tmp/bad-threads.out",
+                "--format", "RGBA8",
                 "--threads", "0"
         }, new PrintStream(outBuffer), new PrintStream(errBuffer));
 
@@ -150,6 +151,7 @@ public class TestBasisDecoderCli {
         int code = BasisDecoderCli.run(new String[]{
                 "--input", "fixtures/uncompressed-rgba8-ktx2.bin",
                 "--output", "/tmp/bad-quality.out",
+                "--format", "RGBA8",
                 "--quality", "999"
         }, new PrintStream(outBuffer), new PrintStream(errBuffer));
 
@@ -222,6 +224,7 @@ public class TestBasisDecoderCli {
         int code = BasisDecoderCli.run(new String[]{
                 "--input", "fixtures/uncompressed-rgba8-ktx2.bin",
                 "--output", "/tmp/bad-bool.out",
+                "--format", "RGBA8",
                 "--linear-color-space", "yes"
         }, new PrintStream(outBuffer), new PrintStream(errBuffer));
 
@@ -269,7 +272,7 @@ public class TestBasisDecoderCli {
         String errText = errBuffer.toString().trim();
 
         assertEquals(2, code);
-        assertTrue(errText.contains("--input and --output are required"));
+        assertTrue(errText.contains("--input, --output, and --format are required"));
     }
 
     @Test
@@ -286,6 +289,7 @@ public class TestBasisDecoderCli {
             int code = BasisDecoderCli.run(new String[]{
                     "--input", input.toString(),
                     "--output", output.toString(),
+                    "--format", "RGBA8",
             }, new PrintStream(outBuffer), new PrintStream(errBuffer));
 
             assertEquals(1, code);

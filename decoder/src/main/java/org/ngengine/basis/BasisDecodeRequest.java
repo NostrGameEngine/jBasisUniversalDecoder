@@ -6,6 +6,9 @@ import java.util.function.IntFunction;
 
 /**
  * Immutable decode request passed to {@link BasisDecoder} backends.
+ *
+ * <p>The transcode target is mandatory. Target selection and fallback policy
+ * belong to the caller, not the decoder.</p>
  */
 public final class BasisDecodeRequest {
 
@@ -17,8 +20,6 @@ public final class BasisDecodeRequest {
 
     private final byte[] encodedData;
     private final BasisTranscodeTarget target;
-    private final BasisPlatformCapabilities platformCapabilities;
-    private final BasisTranscodeTarget preferredFallback;
     private final boolean linearColorSpace;
     private final int qualityLevel;
     private final int threadCount;
@@ -38,8 +39,6 @@ public final class BasisDecodeRequest {
                              IntFunction<ByteBuffer> allocator) {
         this(encodedData,
                 target,
-                null,
-                null,
                 linearColorSpace,
                 qualityLevel,
                 threadCount,
@@ -52,32 +51,6 @@ public final class BasisDecodeRequest {
 
     public BasisDecodeRequest(byte[] encodedData,
                              BasisTranscodeTarget target,
-                             BasisPlatformCapabilities platformCapabilities,
-                             BasisTranscodeTarget preferredFallback,
-                             boolean linearColorSpace,
-                             int qualityLevel,
-                             int threadCount,
-                             boolean strictMode,
-                             String transcodePreset,
-                             IntFunction<ByteBuffer> allocator) {
-        this(encodedData,
-                target,
-                platformCapabilities,
-                preferredFallback,
-                linearColorSpace,
-                qualityLevel,
-                threadCount,
-                0,
-                0,
-                strictMode,
-                transcodePreset,
-                allocator);
-    }
-
-    public BasisDecodeRequest(byte[] encodedData,
-                             BasisTranscodeTarget target,
-                             BasisPlatformCapabilities platformCapabilities,
-                             BasisTranscodeTarget preferredFallback,
                              boolean linearColorSpace,
                              int qualityLevel,
                              int threadCount,
@@ -87,8 +60,6 @@ public final class BasisDecodeRequest {
                              IntFunction<ByteBuffer> allocator) {
         this(encodedData,
                 target,
-                platformCapabilities,
-                preferredFallback,
                 linearColorSpace,
                 qualityLevel,
                 threadCount,
@@ -101,8 +72,6 @@ public final class BasisDecodeRequest {
 
     private BasisDecodeRequest(byte[] encodedData,
                              BasisTranscodeTarget target,
-                             BasisPlatformCapabilities platformCapabilities,
-                             BasisTranscodeTarget preferredFallback,
                              boolean linearColorSpace,
                              int qualityLevel,
                              int threadCount,
@@ -123,12 +92,8 @@ public final class BasisDecodeRequest {
         if (imageIndex < 0) {
             throw new IllegalArgumentException("imageIndex must be non-negative: " + imageIndex);
         }
-        this.target = target;
+        this.target = Objects.requireNonNull(target, "target");
         Ktx2DecodeFlag.fromMask(decodeFlags);
-        this.platformCapabilities = platformCapabilities;
-        this.preferredFallback = preferredFallback == null
-                ? BasisTranscodeTarget.RGBA8
-                : preferredFallback;
         this.linearColorSpace = linearColorSpace;
         this.qualityLevel = qualityLevel;
         this.threadCount = threadCount;
@@ -145,14 +110,6 @@ public final class BasisDecodeRequest {
 
     public BasisTranscodeTarget getTarget() {
         return target;
-    }
-
-    public BasisPlatformCapabilities getPlatformCapabilities() {
-        return platformCapabilities;
-    }
-
-    public BasisTranscodeTarget getPreferredFallback() {
-        return preferredFallback;
     }
 
     public boolean isLinearColorSpace() {
@@ -198,8 +155,6 @@ public final class BasisDecodeRequest {
         return new BasisDecodeRequest(
                 encodedData,
                 target,
-                platformCapabilities,
-                preferredFallback,
                 linearColorSpace,
                 qualityLevel,
                 threadCount,
@@ -210,8 +165,10 @@ public final class BasisDecodeRequest {
                 allocator);
     }
 
-    public static BasisDecodeRequest from(byte[] encodedData) {
-        return new Builder(encodedData).build();
+    public static BasisDecodeRequest from(
+            byte[] encodedData,
+            BasisTranscodeTarget target) {
+        return new Builder(encodedData).target(target).build();
     }
 
     public static Builder builder(byte[] encodedData) {
@@ -221,8 +178,6 @@ public final class BasisDecodeRequest {
     public static final class Builder {
         private final byte[] encodedData;
         private BasisTranscodeTarget target;
-        private BasisPlatformCapabilities platformCapabilities;
-        private BasisTranscodeTarget preferredFallback = BasisTranscodeTarget.RGBA8;
         private boolean linearColorSpace = true;
         private int qualityLevel = 7;
         private int threadCount = 1;
@@ -238,16 +193,6 @@ public final class BasisDecodeRequest {
 
         public Builder target(BasisTranscodeTarget target) {
             this.target = target;
-            return this;
-        }
-
-        public Builder platform(BasisPlatformCapabilities platformCapabilities) {
-            this.platformCapabilities = platformCapabilities;
-            return this;
-        }
-
-        public Builder preferredFallback(BasisTranscodeTarget preferredFallback) {
-            this.preferredFallback = preferredFallback;
             return this;
         }
 
@@ -299,8 +244,6 @@ public final class BasisDecodeRequest {
         public BasisDecodeRequest build() {
             return new BasisDecodeRequest(encodedData,
                     target,
-                    platformCapabilities,
-                    preferredFallback,
                     linearColorSpace,
                     qualityLevel,
                     threadCount,
