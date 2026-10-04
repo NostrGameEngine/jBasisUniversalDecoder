@@ -133,6 +133,24 @@ class BasisTextureEncoderPluginFunctionalTest {
         assertArrayEquals(original, Files.readAllBytes(source));
     }
 
+    @Test
+    void failedEncoderRemovesPartialTextureAndReportsItsDiagnostics() throws IOException {
+        writeProject(false, true, "    encoderTimeoutSeconds = 15\n    encoderLogBytes = 4096\n");
+        Path executable = projectDir.resolve(isWindows() ? "basisu-fake.bat" : "basisu-fake");
+        Files.writeString(executable, Files.readString(executable)
+                + (isWindows() ? "echo known-failure\r\nexit /b 7\r\n" : "printf 'known-failure\\n'\nexit 7\n"));
+        var result = GradleRunner.create()
+                .withProjectDir(projectDir.toFile())
+                .withArguments("encodeBasisTextures", "--stacktrace")
+                .withPluginClasspath()
+                .buildAndFail();
+        assertEquals(TaskOutcome.FAILED, result.task(":encodeBasisTextures").getOutcome());
+        assertTrue(result.getOutput().contains("Encoder exited with status 7"));
+        assertTrue(result.getOutput().contains("known-failure"));
+        assertFalse(Files.exists(projectDir.resolve(
+                "build/generated/basis-textures/resources/textures/diffuse.png.basis")));
+    }
+
     private void writeProject(boolean excludeOriginals, boolean useFakeBasisu) throws IOException {
         writeProject(excludeOriginals, useFakeBasisu, "");
     }

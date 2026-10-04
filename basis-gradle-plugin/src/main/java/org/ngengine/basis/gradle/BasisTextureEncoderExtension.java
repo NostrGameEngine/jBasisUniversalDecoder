@@ -17,6 +17,8 @@ public abstract class BasisTextureEncoderExtension {
         getDimensionAlignment().convention(1);
         getBasisuArguments().convention(Arrays.asList("-basis", "-quiet"));
         getBasisuExecutable().convention("");
+        getEncoderTimeoutSeconds().convention(300);
+        getEncoderLogBytes().convention(1048576L);
     }
 
     public abstract ListProperty<String> getImageExtensions();
@@ -44,4 +46,18 @@ public abstract class BasisTextureEncoderExtension {
     public abstract ListProperty<String> getBasisuArguments();
 
     public abstract Property<String> getBasisuExecutable();
+
+    /**
+     * Maximum wall time per image, from 1 to 86400 seconds. Defaults to 300.
+     *
+     * @return per-image encoder timeout
+     */
+    public abstract Property<Integer> getEncoderTimeoutSeconds();
+
+    /**
+     * Maximum captured diagnostic bytes per image. Defaults to 1 MiB.
+     *
+     * @return diagnostic output limit
+     */
+    public abstract Property<Long> getEncoderLogBytes();
 }

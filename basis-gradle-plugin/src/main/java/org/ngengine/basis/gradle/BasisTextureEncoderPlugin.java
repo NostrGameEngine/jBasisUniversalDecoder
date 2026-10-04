@@ -27,6 +27,8 @@ public class BasisTextureEncoderPlugin implements Plugin<Project> {
                     task.getDimensionAlignment().set(extension.getDimensionAlignment());
                     task.getBasisuArguments().set(extension.getBasisuArguments());
                     task.getBasisuExecutable().set(extension.getBasisuExecutable());
+                    task.getEncoderTimeoutSeconds().set(extension.getEncoderTimeoutSeconds());
+                    task.getEncoderLogBytes().set(extension.getEncoderLogBytes());
                     task.getOutputDirectory().set(project.getLayout().getBuildDirectory()
                             .dir("generated/basis-textures/resources"));
                 });

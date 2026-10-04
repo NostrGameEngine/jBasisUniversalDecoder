@@ -56,6 +56,17 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
     @Optional
     public abstract Property<String> getBasisuExecutable();
 
+    @Input
+    public abstract Property<Integer> getEncoderTimeoutSeconds();
+
+    @Input
+    public abstract Property<Long> getEncoderLogBytes();
+
+    public EncodeBasisTexturesTask() {
+        getEncoderTimeoutSeconds().convention(300);
+        getEncoderLogBytes().convention(1048576L);
+    }
+
     /** Contents of a user-supplied encoder must also invalidate generated textures. */
     @InputFiles
     @PathSensitive(PathSensitivity.NONE)
@@ -132,14 +143,20 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
             command.add(output.toString());
             command.add(source.toString());
 
-            Process process = new ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start();
-            byte[] processOutput = process.getInputStream().readAllBytes();
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new GradleException("basisu failed for " + source + "\n"
-                        + new String(processOutput, java.nio.charset.StandardCharsets.UTF_8));
+            Path log = Files.createTempFile(getTemporaryDir().toPath(), "basisu-", ".log");
+            try {
+                BoundedEncoderProcess.run(command, log, output,
+                        getEncoderTimeoutSeconds().get(), getEncoderLogBytes().get());
+                Files.deleteIfExists(log);
+            } catch (IOException exception) {
+                String diagnostics;
+                try {
+                    diagnostics = BoundedEncoderProcess.diagnostics(log);
+                } catch (IOException diagnosticFailure) {
+                    exception.addSuppressed(diagnosticFailure);
+                    diagnostics = "Unable to read encoder diagnostics at " + log;
+                }
+                throw new IOException(exception.getMessage() + "\n" + diagnostics, exception);
             }
         } catch (IOException e) {
             throw new GradleException("Unable to encode " + source, e);

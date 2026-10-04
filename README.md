@@ -127,5 +127,14 @@ basisTextures {
     imageExtensions.addAll('png', 'jpg', 'jpeg')
     resourceDirectories.add('src/main/resources')
     excludeOriginalsWhenEncoded = false
+    encoderTimeoutSeconds = 300
+    encoderLogBytes = 1048576L
 }
 ```
+
+Each image encoding has a wall timeout (1 to 86400 seconds) and a limit on
+captured diagnostic output. Exceeding either limit fails the task and removes
+the partial texture. Failed encodes retain a bounded diagnostic log under the
+task's temporary directory; exception messages include at most 16 KiB. Cleanup
+stops the encoder and observed child processes within an additional five-second
+budget.
