@@ -1,5 +1,6 @@
 package org.ngengine.basis.gradle;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -114,6 +115,22 @@ class BasisTextureEncoderPluginFunctionalTest {
         assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
         assertFalse(Files.exists(projectDir.resolve("build/generated/basis-textures/resources/textures/diffuse.png.basis")));
         assertEquals(TaskOutcome.UP_TO_DATE, runner.build().task(":encodeBasisTextures").getOutcome());
+    }
+
+    @Test
+    void changingOnlyCustomExecutableBytesInvalidatesActualEncoderTask() throws IOException {
+        writeProject(false, true);
+        Path source = projectDir.resolve("src/main/resources/textures/diffuse.png");
+        byte[] original = Files.readAllBytes(source);
+        GradleRunner runner = GradleRunner.create().withProjectDir(projectDir.toFile())
+                .withArguments("encodeBasisTextures", "--stacktrace", "--max-workers=1")
+                .withPluginClasspath();
+        assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
+        assertEquals(TaskOutcome.UP_TO_DATE, runner.build().task(":encodeBasisTextures").getOutcome());
+        Path executable = projectDir.resolve(isWindows() ? "basisu-fake.bat" : "basisu-fake");
+        Files.writeString(executable, Files.readString(executable) + (isWindows() ? "rem byte-input-changed\r\n" : "# byte-input-changed\n"));
+        assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
+        assertArrayEquals(original, Files.readAllBytes(source));
     }
 
     private void writeProject(boolean excludeOriginals, boolean useFakeBasisu) throws IOException {

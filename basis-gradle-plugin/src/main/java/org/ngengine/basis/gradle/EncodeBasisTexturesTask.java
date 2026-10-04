@@ -56,6 +56,15 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
     @Optional
     public abstract Property<String> getBasisuExecutable();
 
+    /** Contents of a user-supplied encoder must also invalidate generated textures. */
+    @InputFiles
+    @PathSensitive(PathSensitivity.NONE)
+    public FileCollection getConfiguredExecutableInput() {
+        String configured = getBasisuExecutable().getOrNull();
+        return configured == null || configured.isBlank()
+                ? getProject().files() : getProject().files(getProject().file(configured));
+    }
+
     @OutputDirectory
     public abstract DirectoryProperty getOutputDirectory();
 
