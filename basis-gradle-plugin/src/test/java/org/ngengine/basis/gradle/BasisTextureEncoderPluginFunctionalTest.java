@@ -1,5 +1,6 @@
 package org.ngengine.basis.gradle;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -82,6 +83,37 @@ class BasisTextureEncoderPluginFunctionalTest {
         assertTrue(Files.isRegularFile(projectDir.resolve("build/resources/main/textures/diffuse.png.basis")));
         assertTrue(Files.isRegularFile(projectDir.resolve("build/resources/main/icons/logo.png")));
         assertFalse(Files.exists(projectDir.resolve("build/resources/main/icons/logo.png.basis")));
+    }
+
+    @Test
+    void imageAdditionModificationAndRemovalInvalidateTaskButUnrelatedResourcesDoNot() throws IOException {
+        writeProject(false, true);
+        GradleRunner runner = GradleRunner.create()
+                .withProjectDir(projectDir.toFile())
+                .withArguments("encodeBasisTextures", "--stacktrace", "--max-workers=1")
+                .withPluginClasspath();
+        assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
+        assertEquals(TaskOutcome.UP_TO_DATE, runner.build().task(":encodeBasisTextures").getOutcome());
+        Files.writeString(projectDir.resolve("src/main/resources/readme.txt"), "not an image");
+        assertEquals(TaskOutcome.UP_TO_DATE, runner.build().task(":encodeBasisTextures").getOutcome());
+
+        Path added = projectDir.resolve("src/main/resources/textures/added.PNG");
+        writePng(added);
+        assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
+        Path generated = projectDir.resolve("build/generated/basis-textures/resources/textures/added.PNG.basis");
+        assertTrue(Files.isRegularFile(generated));
+
+        BufferedImage replacement = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
+        replacement.setRGB(0, 0, 0xff448855);
+        ImageIO.write(replacement, "PNG", added.toFile());
+        assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
+        Files.delete(added);
+        assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
+        assertFalse(Files.exists(generated));
+        Files.delete(projectDir.resolve("src/main/resources/textures/diffuse.png"));
+        assertEquals(TaskOutcome.SUCCESS, runner.build().task(":encodeBasisTextures").getOutcome());
+        assertFalse(Files.exists(projectDir.resolve("build/generated/basis-textures/resources/textures/diffuse.png.basis")));
+        assertEquals(TaskOutcome.UP_TO_DATE, runner.build().task(":encodeBasisTextures").getOutcome());
     }
 
     private void writeProject(boolean excludeOriginals, boolean useFakeBasisu) throws IOException {

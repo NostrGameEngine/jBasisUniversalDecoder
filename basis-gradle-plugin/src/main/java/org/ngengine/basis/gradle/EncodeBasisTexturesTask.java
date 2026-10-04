@@ -17,12 +17,17 @@ import javax.imageio.stream.ImageInputStream;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.DisableCachingByDefault;
 
@@ -53,6 +58,26 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
 
     @OutputDirectory
     public abstract DirectoryProperty getOutputDirectory();
+
+    /** Image contents must invalidate the task, not just their directory names. */
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public FileCollection getSourceImages() {
+        Set<String> extensions = normalizedExtensions();
+        Set<String> excludedPaths = normalizedExcludedPaths();
+        List<Path> classpathRoots = classpathResourceRoots();
+        List<FileTree> trees = new ArrayList<>();
+        for (String directory : getResourceDirectories().get()) {
+            Path resourceRoot = normalizedProjectPath(directory);
+            trees.add(getProject().fileTree(resourceRoot.toFile()).matching(pattern ->
+                    pattern.include(element -> element.isDirectory()
+                            || (extensions.contains(extension(element.getFile().toPath()))
+                            && !excludedPaths.contains(resourcePath(relativeResourcePath(
+                                    element.getFile().toPath(), resourceRoot, classpathRoots)))))));
+        }
+        // Do not skip an empty input set: removing the last image must clean stale output.
+        return getProject().files(trees);
+    }
 
     @TaskAction
     public void encode() throws IOException, InterruptedException {
