@@ -1,0 +1,45 @@
+{
+  "binaries": {
+    "darwin-aarch64": {
+      "bytes": 3484984,
+      "path": "darwin-aarch64/basisu",
+      "sha256": "654283dca7f02bac1b170a63539c5d740a5f65bb01af08690b987de712b0a965"
+    },
+    "darwin-x86_64": {
+      "bytes": 3977072,
+      "path": "darwin-x86_64/basisu",
+      "sha256": "fa834ac67475ed15f2ffc48c9ace140154e0f2d876467e2f0befc08b188071d4"
+    },
+    "linux-aarch64": {
+      "bytes": 5808192,
+      "path": "linux-aarch64/basisu",
+      "sha256": "9907deefda5925cafe67b5f1b59d1e6cecac2fadfb6d812287c04ed0fc4f9fd8"
+    },
+    "linux-x86_64": {
+      "bytes": 6300104,
+      "path": "linux-x86_64/basisu",
+      "sha256": "9ecba1ddd3a236b10176fea78767beac6b4f1ff7863f9d174eec9b21cd0c9876"
+    },
+    "windows-aarch64": {
+      "bytes": 5016064,
+      "path": "windows-aarch64/basisu.exe",
+      "sha256": "62c5024148c5d8375596eadbab1b7f2341a6281e92ca0c4507a505084c46ae5b"
+    },
+    "windows-x86_64": {
+      "bytes": 5832192,
+      "path": "windows-x86_64/basisu.exe",
+      "sha256": "781f03fa81a510be1633c32c84765c00dba3c3d799e04954fa14d3bfbeb4e6bb"
+    }
+  },
+  "patches": [
+    {
+      "path": "01-transfer-and-dds-mips.patch",
+      "sha256": "bedbb2403f1e1d658ea34b054a09d2af8c61975ca951f5028b9f315bab84c939"
+    },
+    {
+      "path": "02-dds-read-cleanup.patch",
+      "sha256": "dbe8512c1f359a5659c95a2451b29df5250dd2ded5cbe658b36d642931d13c3b"
+    }
+  ],
+  "upstreamBase": "e4f439fc9545b6a9e1fd26fc7ffd0c682c4b96d4"
+}

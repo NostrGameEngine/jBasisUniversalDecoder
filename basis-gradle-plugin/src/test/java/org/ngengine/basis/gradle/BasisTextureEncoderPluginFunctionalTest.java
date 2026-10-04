@@ -8,6 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.imageio.ImageIO;
@@ -149,6 +153,71 @@ class BasisTextureEncoderPluginFunctionalTest {
         assertTrue(result.getOutput().contains("known-failure"));
         assertFalse(Files.exists(projectDir.resolve(
                 "build/generated/basis-textures/resources/textures/diffuse.png.basis")));
+    }
+
+    @Test
+    void bundledEncoderPreservesCompleteRectangularDdsMipChain() throws Exception {
+        writeProject(false, false, "    imageExtensions = ['dds']\n"
+                + "    resourceDirectories = ['src/main/resources/dds']\n"
+                + "    dimensionAlignment = 1\n"
+                + "    basisuArguments = ['-basis', '-uastc', '-linear', '-quiet', '-max_threads', '1', '-no_multithreading']\n"
+                + "    encoderTimeoutSeconds = 120\n");
+        Path source = projectDir.resolve("src/main/resources/dds/rectangular.dds");
+        Files.createDirectories(source.getParent());
+        try (InputStream input = getClass().getResourceAsStream("/fixtures/rgba8-complete17x9.dds")) {
+            Files.copy(input, source);
+        }
+        byte[] original = Files.readAllBytes(source); // Exactly 912 bytes, 17x9 and all five authored mips.
+        var result = GradleRunner.create().withProjectDir(projectDir.toFile())
+                .withArguments("encodeBasisTextures", "--stacktrace", "--max-workers=1")
+                .withPluginClasspath().build();
+        assertEquals(TaskOutcome.SUCCESS, result.task(":encodeBasisTextures").getOutcome());
+        Path encoded = projectDir.resolve("build/generated/basis-textures/resources/dds/rectangular.dds.basis");
+        assertTrue(Files.size(encoded) > 0);
+        // Pinned basisu_file_headers.h layout: one UASTC slice per authored level.
+        try (RandomAccessFile file = new RandomAccessFile(encoded.toFile(), "r")) {
+            byte[] header = new byte[77];
+            file.readFully(header);
+            ByteBuffer view = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
+            assertEquals(0x4273, Short.toUnsignedInt(view.getShort(0)));
+            assertEquals(5, (header[14] & 0xff) | ((header[15] & 0xff) << 8) | ((header[16] & 0xff) << 16));
+            assertEquals(1, (header[17] & 0xff) | ((header[18] & 0xff) << 8) | ((header[19] & 0xff) << 16));
+            assertEquals(1, header[20] & 0xff); // UASTC LDR4x4.
+            assertEquals(0, Short.toUnsignedInt(view.getShort(21)) & (1 | 2 | 16)); // No ETC1S, flip or sRGB flag.
+            long descriptions = Integer.toUnsignedLong(view.getInt(65));
+            assertTrue(descriptions >= 77 && descriptions + 5L * 23 <= file.length());
+            int[][] dimensions = {{17, 9}, {8, 4}, {4, 2}, {2, 1}, {1, 1}};
+            file.seek(descriptions);
+            for (int level = 0; level < dimensions.length; level++) {
+                byte[] slice = new byte[23];
+                file.readFully(slice);
+                ByteBuffer description = ByteBuffer.wrap(slice).order(ByteOrder.LITTLE_ENDIAN);
+                assertEquals(level, slice[3] & 0xff);
+                assertEquals(dimensions[level][0], Short.toUnsignedInt(description.getShort(5)));
+                assertEquals(dimensions[level][1], Short.toUnsignedInt(description.getShort(7)));
+            }
+        }
+        assertArrayEquals(original, Files.readAllBytes(source));
+    }
+
+    @Test
+    void bundledUastcEncoderPreservesRequestedTransferFunction() throws IOException {
+        for (boolean linear : new boolean[] {false, true}) {
+            writeProject(false, false, "    basisuArguments = ['-basis', '-uastc', '-quiet'"
+                    + (linear ? ", '-linear'" : "") + "]\n");
+            GradleRunner.create()
+                    .withProjectDir(projectDir.toFile())
+                    .withArguments("encodeBasisTextures", "--stacktrace")
+                    .withPluginClasspath()
+                    .build();
+            Path encoded = projectDir.resolve(
+                    "build/generated/basis-textures/resources/textures/diffuse.png.basis");
+            try (RandomAccessFile file = new RandomAccessFile(encoded.toFile(), "r")) {
+                file.seek(21);
+                int flags = file.readUnsignedByte() | (file.readUnsignedByte() << 8);
+                assertEquals(linear ? 0 : 16, flags & 16);
+            }
+        }
     }
 
     private void writeProject(boolean excludeOriginals, boolean useFakeBasisu) throws IOException {

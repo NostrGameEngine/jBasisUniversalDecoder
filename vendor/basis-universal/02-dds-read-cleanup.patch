@@ -1,0 +1,61 @@
+diff --git a/encoder/3rdparty/tinydds.h b/encoder/3rdparty/tinydds.h
+index 01a42d6..d4b2897 100644
+--- a/encoder/3rdparty/tinydds.h
++++ b/encoder/3rdparty/tinydds.h
+@@ -1670,10 +1670,15 @@ void const *TinyDDS_ImageRawData(TinyDDS_ContextHandle handle, uint32_t mipmaple
+ 
+ 		uint8_t *dstPtr = (uint8_t*)ctx->mipmaps[mipmaplevel];
+ 		for (uint32_t i = 0u;i < 6;++i) {
+-			ctx->callbacks.seekFn(ctx->user, offset + ctx->firstImagePos);
++			if (!ctx->callbacks.seekFn(ctx->user, offset + ctx->firstImagePos)) {
++				ctx->callbacks.freeFn(ctx->user, (void*)ctx->mipmaps[mipmaplevel]);
++				ctx->mipmaps[mipmaplevel] = NULL;
++				return NULL;
++			}
+ 			size_t read = ctx->callbacks.readFn(ctx->user, (void *) dstPtr, faceSize);
+ 			if(read != faceSize) {
+-				ctx->callbacks.freeFn(ctx->user, (void*)&ctx->mipmaps[mipmaplevel]);
++				ctx->callbacks.freeFn(ctx->user, (void*)ctx->mipmaps[mipmaplevel]);
++				ctx->mipmaps[mipmaplevel] = NULL;
+ 				return NULL;
+ 			}
+ 			dstPtr += faceSize;
+@@ -1691,13 +1696,15 @@ void const *TinyDDS_ImageRawData(TinyDDS_ContextHandle handle, uint32_t mipmaple
+ 	if (size == 0)
+ 		return NULL;
+ 
+-	ctx->callbacks.seekFn(ctx->user, offset + ctx->firstImagePos);
++	if (!ctx->callbacks.seekFn(ctx->user, offset + ctx->firstImagePos))
++		return NULL;
+ 
+ 	ctx->mipmaps[mipmaplevel] = (uint8_t const *) ctx->callbacks.allocFn(ctx->user, size);
+ 	if (!ctx->mipmaps[mipmaplevel]) return NULL;
+ 	size_t read = ctx->callbacks.readFn(ctx->user, (void *) ctx->mipmaps[mipmaplevel], size);
+ 	if(read != size) {
+-		ctx->callbacks.freeFn(ctx->user, (void*)&ctx->mipmaps[mipmaplevel]);
++		ctx->callbacks.freeFn(ctx->user, (void*)ctx->mipmaps[mipmaplevel]);
++		ctx->mipmaps[mipmaplevel] = NULL;
+ 		return NULL;
+ 	}
+ 
+diff --git a/encoder/basisu_gpu_texture.cpp b/encoder/basisu_gpu_texture.cpp
+index 89bb2fe..ea673b5 100644
+--- a/encoder/basisu_gpu_texture.cpp
++++ b/encoder/basisu_gpu_texture.cpp
+@@ -2177,6 +2177,11 @@ namespace basisu
+ 			const uint32_t total_level_texels = level_width * level_height;
+ 
+ 			const void* pImage = TinyDDS_ImageRawData(ctx, level);
++			if (!pImage)
++			{
++				error_printf("Failed reading DDS mip level %u in file \"%s\"\n", level, pFilename);
++				goto failure;
++			}
+ 			const uint32_t image_size = TinyDDS_ImageSize(ctx, level);
+ 
+ 			if (fmt == cRGBA32)
+@@ -2459,4 +2464,3 @@ namespace basisu
+ 	}
+ 		
+ } // basisu
+-

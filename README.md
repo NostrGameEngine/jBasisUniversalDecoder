@@ -9,11 +9,12 @@ Standalone Java decoder/transcoder port for Basis Universal, and Gradle plugin f
 
 - `decoder`: pure Java runtime API and implementation. This is the artifact to
   embed in applications and engine integrations.
-- `parity-tests`: end-to-end parity harness. It builds the official `basisu`
-  tool from the tracked `basis_universal` submodule in `build/`, encodes test
-  PNGs, unpacks them with the official tool, decodes the same payload with Java,
+- `parity-tests`: end-to-end parity harness. It builds the reference `basisu`
+  tool from the tracked `basis_universal` submodule plus the local encoder
+  patches in `vendor/basis-universal` in `build/`, encodes test
+  PNGs, unpacks them with the reference tool, decodes the same payload with Java,
   and compares RGBA pixels plus packed RGB565/BGR565/RGBA4444 output derived
-  from the official unpack.
+  from the reference unpack.
 - `basis-gradle-plugin`: Gradle plugin for build-time texture
   conversion. It scans resources, writes generated `.basis` files under
   `build/generated`, and wires them into the runtime classpath without modifying

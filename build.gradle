@@ -144,8 +144,10 @@ tasks.named('jreleaserDeploy') {
     dependsOn(tasks.named('stageReleaseArtifacts'))
 }
 
+apply from: 'gradle/native-basis.gradle'
+
 tasks.register('parityTest') {
     group = 'verification'
-    description = 'Builds the official Basis Universal reference tools and runs Java/C++ parity tests.'
+    description = 'Builds the Basis Universal reference tools and runs Java/C++ parity tests.'
     dependsOn ':parity-tests:test'
 }

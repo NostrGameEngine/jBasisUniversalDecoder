@@ -32,6 +32,28 @@ class BasisuReferenceRoundTripParityTest {
     Path tempDir;
 
     @Test
+    void nativeUastcBasisPreservesRequestedTransferFunction() throws Exception {
+        Path png = tempDir.resolve("transfer.png");
+        writeCheckerPng(png);
+        for (boolean linear : new boolean[] {false, true}) {
+            Path encoded = tempDir.resolve(linear ? "linear.basis" : "srgb.basis");
+            List<String> command = new ArrayList<>(List.of(
+                    basisuExecutable().toString(), "-basis", "-uastc", "-quiet",
+                    "-output_file", encoded.toString(), png.toString()));
+            if (linear) {
+                command.add("-linear");
+            }
+            run(command, tempDir);
+            try (var input = Files.newInputStream(encoded)) {
+                byte[] header = input.readNBytes(77);
+                assertEquals(77, header.length);
+                assertEquals(linear ? 0 : 16,
+                        Short.toUnsignedInt(ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getShort(21)) & 16);
+            }
+        }
+    }
+
+    @Test
     void javaDecoderMatchesOfficialBasisuRgbaUnpackForKtx2AndBasis() throws Exception {
         Path inputPng = tempDir.resolve("checker.png");
         writeCheckerPng(inputPng);

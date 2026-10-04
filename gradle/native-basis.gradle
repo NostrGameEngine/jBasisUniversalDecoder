@@ -1,0 +1,66 @@
+// Apply the reviewed encoder patches to a build copy of the upstream submodule.
+def patchedSource = layout.buildDirectory.dir('basisu-patched/src')
+def patchDirectory = file('vendor/basis-universal')
+def sourceManifest = new groovy.json.JsonSlurper().parse(new File(patchDirectory, 'manifest.json'))
+def patchFiles = sourceManifest.patches.collect { new File(patchDirectory, it.path) }
+def sha256 = { File input ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    input.withInputStream { stream ->
+        byte[] buffer = new byte[8192]
+        int count
+        while ((count = stream.read(buffer)) != -1) digest.update(buffer, 0, count)
+    }
+    digest.digest().encodeHex().toString()
+}
+
+tasks.register('prepareBasisUniversalSource', Sync) {
+    group = 'build'
+    description = 'Copies the pinned Basis Universal source and applies the local encoder fixes.'
+    from file('basis_universal')
+    into patchedSource
+    exclude '.git', '.git/**', 'build/**', 'bin/**'
+    inputs.files(patchFiles, new File(patchDirectory, 'manifest.json'))
+    doFirst {
+        File upstream = file('basis_universal')
+        if (new File(upstream, '.git').exists()) {
+            String revision = providers.exec {
+                commandLine 'git', '-C', upstream.absolutePath, 'rev-parse', 'HEAD'
+            }.standardOutput.asText.get().trim()
+            if (revision != sourceManifest.upstreamBase) {
+                throw new GradleException('Basis Universal upstream revision differs from the patch recipe')
+            }
+            def changes = providers.exec {
+                commandLine 'git', '-C', upstream.absolutePath, 'diff', '--quiet', 'HEAD', '--'
+                ignoreExitValue = true
+            }.result.get()
+            if (changes.exitValue != 0) {
+                throw new GradleException('Basis Universal has tracked local changes; record them as source patches')
+            }
+        }
+        sourceManifest.sourceFiles.each { String path, row ->
+            File source = file("basis_universal/${path}")
+            if (!source.isFile() || sha256(source) != row.upstreamSha256) {
+                throw new GradleException('Basis Universal patch base differs: ' + path)
+            }
+        }
+        sourceManifest.patches.each { row ->
+            if (sha256(new File(patchDirectory, row.path)) != row.sha256) {
+                throw new GradleException('Basis Universal patch differs: ' + row.path)
+            }
+        }
+        delete(patchedSource)
+    }
+    doLast {
+        providers.exec {
+            workingDir patchedSource.get().asFile
+            // Apply to the copied files, without discovering the enclosing wrapper repository.
+            environment 'GIT_CEILING_DIRECTORIES', patchedSource.get().asFile.parent
+            commandLine(['git', 'apply', '--whitespace=nowarn'] + patchFiles*.absolutePath)
+        }.result.get().assertNormalExitValue()
+        sourceManifest.sourceFiles.each { String path, row ->
+            if (sha256(new File(patchedSource.get().asFile, path)) != row.patchedSha256) {
+                throw new GradleException('Patched Basis Universal source differs: ' + path)
+            }
+        }
+    }
+}

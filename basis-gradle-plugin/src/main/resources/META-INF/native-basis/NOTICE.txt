@@ -1,0 +1,7 @@
+The bundled Basis Universal encoders are built from the upstream revision and
+patch recipe recorded in binaries.json. Local modifications preserve the UASTC
+transfer-function flag and complete rectangular DDS mip chains, and reject DDS
+seek/read failures without invalid frees or cached partial image data.
+
+The source patches and their manifest are distributed in this directory.
+Original Basis Universal and Zstandard copyright and license notices are retained.

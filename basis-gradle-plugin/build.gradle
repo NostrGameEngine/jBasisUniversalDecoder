@@ -76,10 +76,22 @@ def requiredBasisuBinaries = [
         'windows-aarch64/basisu.exe',
         'windows-x86_64/basisu.exe'
 ]
+def nativeSha256 = { File input ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    input.withInputStream { stream ->
+        byte[] buffer = new byte[8192]
+        int count
+        while ((count = stream.read(buffer)) != -1) digest.update(buffer, 0, count)
+    }
+    digest.digest().encodeHex().toString()
+}
 
 tasks.register('verifyBundledBasisuBinaries') {
     group = 'verification'
-    description = 'Verifies that release packaging includes basisu executables for all supported platforms.'
+    description = 'Verifies bundled encoder hashes and the source patch recipe for all supported platforms.'
+    inputs.files(fileTree('src/main/resources/basisu-bin'),
+            file('src/main/resources/META-INF/native-basis/binaries.json'),
+            rootProject.fileTree('vendor/basis-universal') { include '*.patch', 'manifest.json' })
 
     doLast {
         List<String> missing = []
@@ -92,5 +104,54 @@ tasks.register('verifyBundledBasisuBinaries') {
         if (!missing.isEmpty()) {
             throw new GradleException('Missing bundled basisu binaries:\n' + missing.join('\n'))
         }
+        def bindings = new groovy.json.JsonSlurper().parse(
+                file('src/main/resources/META-INF/native-basis/binaries.json'))
+        def recipe = new groovy.json.JsonSlurper().parse(rootProject.file('vendor/basis-universal/manifest.json'))
+        if (bindings.upstreamBase != recipe.upstreamBase || bindings.patches != recipe.patches) {
+            throw new GradleException('Bundled encoders do not match the current native source patch recipe')
+        }
+        recipe.patches.each { row ->
+            if (nativeSha256(rootProject.file("vendor/basis-universal/${row.path}")) != row.sha256) {
+                throw new GradleException('Native patch differs from the bundled source recipe: ' + row.path)
+            }
+        }
+        if (bindings.binaries.keySet() != requiredBasisuBinaries.collect { it.substring(0, it.indexOf('/')) }.toSet()) {
+            throw new GradleException('Bundled encoder manifest must cover all six supported platforms')
+        }
+        requiredBasisuBinaries.each { String path ->
+            File binary = file("src/main/resources/basisu-bin/${path}")
+            def row = bindings.binaries[path.substring(0, path.indexOf('/'))]
+            if (row.path != path || row.bytes != binary.length() || row.sha256 != nativeSha256(binary)) {
+                throw new GradleException('Bundled encoder differs from its source binding: ' + path)
+            }
+        }
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn tasks.named('verifyBundledBasisuBinaries')
+    from(rootProject.file('vendor/basis-universal')) {
+        include '*.patch', 'manifest.json'
+        into 'META-INF/native-basis'
+    }
+    from(rootProject.file('basis_universal/LICENSE')) {
+        into 'META-INF/native-basis'
+        rename { 'LICENSE-Apache-2.0.txt' }
+    }
+    from(rootProject.file('basis_universal/NOTICE')) {
+        into 'META-INF/native-basis'
+        rename { 'NOTICE-Basis-Universal.txt' }
+    }
+    from(rootProject.file('basis_universal/zstd/LICENSE')) {
+        into 'META-INF/native-basis'
+        rename { 'LICENSE-Zstandard-BSD.txt' }
+    }
+}
+
+tasks.named('sourcesJar') {
+    dependsOn tasks.named('processResources')
+    from(layout.buildDirectory.dir('resources/main')) {
+        include 'META-INF/native-basis/*.patch', 'META-INF/native-basis/manifest.json',
+                'META-INF/native-basis/LICENSE*.txt', 'META-INF/native-basis/NOTICE-Basis-Universal.txt'
     }
 }

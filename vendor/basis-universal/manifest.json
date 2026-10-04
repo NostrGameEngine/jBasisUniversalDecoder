@@ -1,0 +1,27 @@
+{
+  "upstreamBase": "e4f439fc9545b6a9e1fd26fc7ffd0c682c4b96d4",
+  "patches": [
+    {
+      "path": "01-transfer-and-dds-mips.patch",
+      "sha256": "bedbb2403f1e1d658ea34b054a09d2af8c61975ca951f5028b9f315bab84c939"
+    },
+    {
+      "path": "02-dds-read-cleanup.patch",
+      "sha256": "dbe8512c1f359a5659c95a2451b29df5250dd2ded5cbe658b36d642931d13c3b"
+    }
+  ],
+  "sourceFiles": {
+    "encoder/3rdparty/tinydds.h": {
+      "upstreamSha256": "02341ce29766539fd4db800b17f10b3a3a168b8b352d59986ebecd1b275f1040",
+      "patchedSha256": "455a44e33468ae10e7a82ecacf798cce0b98234695dc1db57665e4d593733cfc"
+    },
+    "encoder/basisu_comp.cpp": {
+      "upstreamSha256": "aa5acdf7129be2b7129d97c4ce2e6e50e077d05f71e7d3e212fad09d16393803",
+      "patchedSha256": "c64c1018a9342adf16ce5095996d337d09bcfe4c0bc4b63fe46fd6834375f662"
+    },
+    "encoder/basisu_gpu_texture.cpp": {
+      "upstreamSha256": "cc51848182b68c3a890ab8206e2d89939ed8a60260e63a524e2e98a43c6cbf4b",
+      "patchedSha256": "60fba72d8317dbc6f9d53977558856fe490a7eec497dbc10d84aa90ddf7a2b75"
+    }
+  }
+}

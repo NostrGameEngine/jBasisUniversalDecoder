@@ -33,7 +33,8 @@ def basisuRawTranscodeExecutableName = isWindows
 def basisuRawTranscodeExecutable = layout.buildDirectory.file("basisu-reference/${basisuRawTranscodeExecutableName}")
 
 tasks.register('syncBasisUniversalReference', Sync) {
-    from rootProject.file('basis_universal')
+    dependsOn rootProject.tasks.named('prepareBasisUniversalSource')
+    from rootProject.layout.buildDirectory.dir('basisu-patched/src')
     into basisuReferenceSource
     exclude '.git/**', 'build/**', 'bin/**'
 }
@@ -53,7 +54,7 @@ tasks.register('configureBasisuReference', Exec) {
 
 tasks.register('buildBasisuReference', Exec) {
     group = 'verification'
-    description = 'Builds the official Basis Universal command line tool from the tracked submodule.'
+    description = 'Builds the pinned Basis Universal command line tool with the local encoder patches.'
     dependsOn tasks.named('configureBasisuReference')
     outputs.file basisuExecutable
     commandLine 'cmake',
@@ -86,6 +87,52 @@ tasks.register('buildBasisuRawTranscode', Exec) {
 test {
     useJUnitPlatform()
     dependsOn tasks.named('buildBasisuRawTranscode')
+    dependsOn 'testBasisuDdsMips', 'testBasisuDdsReadFailures'
     systemProperty 'basisu.executable', basisuExecutable.get().asFile.absolutePath
     systemProperty 'basisu.rawTranscode.executable', basisuRawTranscodeExecutable.get().asFile.absolutePath
+}
+
+def ddsMipsExecutable = layout.buildDirectory.file('native-regressions/dds-mips' + (isWindows ? '.exe' : ''))
+def ddsReadsExecutable = layout.buildDirectory.file('native-regressions/dds-read-failures' + (isWindows ? '.exe' : ''))
+
+tasks.register('buildBasisuDdsMips', Exec) {
+    dependsOn rootProject.tasks.named('prepareBasisUniversalSource')
+    inputs.file 'src/test/harness/basisu_dds_mip_chain_test.cpp'
+    inputs.file rootProject.layout.buildDirectory.file('basisu-patched/src/encoder/3rdparty/tinydds.h')
+    outputs.file ddsMipsExecutable
+    doFirst { ddsMipsExecutable.get().asFile.parentFile.mkdirs() }
+    commandLine 'c++', '-std=c++17', '-O2',
+            '-I', rootProject.layout.buildDirectory.dir('basisu-patched/src').get().asFile.absolutePath,
+            file('src/test/harness/basisu_dds_mip_chain_test.cpp').absolutePath,
+            '-o', ddsMipsExecutable.get().asFile.absolutePath
+}
+
+tasks.register('testBasisuDdsMips', Exec) {
+    group = 'verification'
+    description = 'Checks DDS mip tails, cubemaps, failed seeks and allocation cleanup.'
+    dependsOn 'buildBasisuDdsMips'
+    commandLine ddsMipsExecutable.get().asFile.absolutePath
+}
+
+tasks.register('buildBasisuDdsReadFailures', Exec) {
+    dependsOn tasks.named('buildBasisuRawTranscode')
+    inputs.file 'src/test/harness/basisu_dds_read_failure_test.cpp'
+    inputs.file basisuReferenceBuild.map { it.file('libbasisu_encoder.a') }
+    outputs.file ddsReadsExecutable
+    doFirst { ddsReadsExecutable.get().asFile.parentFile.mkdirs() }
+    commandLine 'c++', '-std=c++17', '-O2', '-DNDEBUG', *nativeFloatingPointFlags,
+            '-I', basisuReferenceSource.get().asFile.absolutePath,
+            '-I', basisuReferenceSource.get().file('transcoder').asFile.absolutePath,
+            file('src/test/harness/basisu_dds_read_failure_test.cpp').absolutePath,
+            basisuReferenceBuild.get().file('libbasisu_encoder.a').asFile.absolutePath,
+            '-lpthread', '-o', ddsReadsExecutable.get().asFile.absolutePath
+}
+
+tasks.register('testBasisuDdsReadFailures', Exec) {
+    group = 'verification'
+    description = 'Checks the native DDS image reader with truncated LDR and HDR mip payloads.'
+    dependsOn 'buildBasisuDdsReadFailures'
+    def fixtures = layout.buildDirectory.dir('native-regressions/dds-fixtures')
+    doFirst { fixtures.get().asFile.mkdirs() }
+    commandLine ddsReadsExecutable.get().asFile.absolutePath, fixtures.get().asFile.absolutePath
 }
