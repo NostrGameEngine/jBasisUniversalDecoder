@@ -139,3 +139,10 @@ the partial texture. Failed encodes retain a bounded diagnostic log under the
 task's temporary directory; exception messages include at most 16 KiB. Cleanup
 stops the encoder and observed child processes within an additional five-second
 budget.
+
+Bundled executables are extracted to a temporary file and checked against a
+SHA-256 index derived from the source-recipe manifest before they are made
+executable. The index covers all six supported platforms. This detects corrupt
+or mismatched extraction; it does not authenticate an untrusted plugin JAR.
+Custom `basisuExecutable` files must already have executable permission. The
+plugin never changes a custom executable's permissions.

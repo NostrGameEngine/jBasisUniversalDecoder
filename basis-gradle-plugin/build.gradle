@@ -128,8 +128,25 @@ tasks.register('verifyBundledBasisuBinaries') {
     }
 }
 
-tasks.named('processResources') {
+// Derive the runtime index from the same verified manifest; do not maintain a
+// second set of checksums in Java or in a checked-in resource.
+def runtimeChecksums = layout.buildDirectory.dir('generated/basisu-checksums')
+def generateBasisuChecksums = tasks.register('generateBasisuChecksums') {
     dependsOn tasks.named('verifyBundledBasisuBinaries')
+    inputs.file('src/main/resources/META-INF/native-basis/binaries.json')
+    outputs.dir(runtimeChecksums)
+    doLast {
+        def bindings = new groovy.json.JsonSlurper().parse(
+                file('src/main/resources/META-INF/native-basis/binaries.json'))
+        File index = new File(runtimeChecksums.get().asFile, 'META-INF/native-basis/encoder-sha256.properties')
+        index.parentFile.mkdirs()
+        index.setText(bindings.binaries.values().sort { it.path }
+                .collect { "${it.path}=${it.sha256}\n" }.join(''), 'UTF-8')
+    }
+}
+
+tasks.named('processResources') {
+    from(generateBasisuChecksums)
     from(rootProject.file('vendor/basis-universal')) {
         include '*.patch', 'manifest.json'
         into 'META-INF/native-basis'

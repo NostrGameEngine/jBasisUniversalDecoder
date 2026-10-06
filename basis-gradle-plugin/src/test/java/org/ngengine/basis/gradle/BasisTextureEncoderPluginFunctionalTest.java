@@ -26,6 +26,36 @@ class BasisTextureEncoderPluginFunctionalTest {
     Path projectDir;
 
     @Test
+    void nonExecutableCustomEncoderIsRejectedWithoutChangingItsPermissions() throws IOException {
+        org.junit.jupiter.api.Assumptions.assumeFalse(isWindows(), "Executable mode regression requires POSIX permissions");
+        writeProject(false, true);
+        Path executable = projectDir.resolve("basisu-fake");
+        Files.setPosixFilePermissions(executable, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        var before = Files.getPosixFilePermissions(executable);
+        byte[] content = Files.readAllBytes(executable);
+        var result = GradleRunner.create().withProjectDir(projectDir.toFile())
+                .withArguments("encodeBasisTextures", "--stacktrace", "--max-workers=1")
+                .withPluginClasspath().buildAndFail();
+        assertTrue(result.getOutput().contains("Configured basisuExecutable is not executable"));
+        assertEquals(before, Files.getPosixFilePermissions(executable));
+        assertArrayEquals(content, Files.readAllBytes(executable));
+    }
+
+    @Test
+    void bundledEncoderCanBeResolvedWithoutRunningIt() throws IOException {
+        writeProject(false, false);
+        Files.writeString(projectDir.resolve("build.gradle"),
+                "\ntasks.register('resolveOnly') { doLast {\n"
+                        + "  def encoder = tasks.named('encodeBasisTextures').get().resolveBasisuExecutable().toFile()\n"
+                        + "  assert encoder.isFile() && encoder.length() > 0 && encoder.canExecute()\n"
+                        + "} }\n", java.nio.file.StandardOpenOption.APPEND);
+        var result = GradleRunner.create().withProjectDir(projectDir.toFile())
+                .withArguments("resolveOnly", "--stacktrace", "--max-workers=1")
+                .withPluginClasspath().build();
+        assertEquals(TaskOutcome.SUCCESS, result.task(":resolveOnly").getOutcome());
+    }
+
+    @Test
     void generatedBasisFilesAreAddedToJavaResourcesWithoutChangingSources() throws IOException {
         writeProject(false, true);
 

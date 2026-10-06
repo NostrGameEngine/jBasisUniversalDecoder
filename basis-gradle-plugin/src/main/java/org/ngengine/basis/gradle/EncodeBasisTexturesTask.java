@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -294,7 +293,8 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
                 throw new GradleException("Configured basisuExecutable does not exist: " + executable);
             }
             if (!Files.isExecutable(executable)) {
-                executable.toFile().setExecutable(true);
+                throw new GradleException("Configured basisuExecutable is not executable: " + executable
+                        + ". Grant executable permission explicitly before running the task.");
             }
             return executable;
         }
@@ -306,16 +306,14 @@ public abstract class EncodeBasisTexturesTask extends DefaultTask {
         String executableName = platform.startsWith("windows-") ? "basisu.exe" : "basisu";
         String resource = "/basisu-bin/" + platform + "/" + executableName;
         Path output = getTemporaryDir().toPath().resolve(platform).resolve(executableName);
-        Files.createDirectories(output.getParent());
-
+        String checksum = BundledEncoderExecutable.expectedChecksum(platform + "/" + executableName);
         try (InputStream input = EncodeBasisTexturesTask.class.getResourceAsStream(resource)) {
             if (input == null) {
                 throw new GradleException("Missing bundled Basis Universal encoder for " + platform
                         + ". Add " + resource + " to the plugin resources.");
             }
-            Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
+            BundledEncoderExecutable.extract(input, checksum, output);
         }
-        output.toFile().setExecutable(true);
         return output;
     }
 
