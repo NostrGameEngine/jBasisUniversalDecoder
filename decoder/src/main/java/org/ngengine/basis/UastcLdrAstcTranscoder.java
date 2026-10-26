@@ -692,20 +692,18 @@ final class UastcLdrAstcTranscoder {
         int[] color = block.solidRgba;
         int err0 = 0;
         int err1 = 0;
-        int[][] mode6P0 = new int[4][];
-        int[][] mode6P1 = new int[4][];
         for (int comp = 0; comp < 4; comp++) {
-            mode6P0[comp] = Bc7LdrBlockPacker.mode6OptimalEndpoint(color[comp], 0);
-            mode6P1[comp] = Bc7LdrBlockPacker.mode6OptimalEndpoint(color[comp], 1);
-            err0 += mode6P0[comp][2];
-            err1 += mode6P1[comp][2];
+            err0 += Bc7LdrBlockPacker.endpointError(
+                    Bc7LdrBlockPacker.mode6OptimalEndpointPacked(color[comp], 0));
+            err1 += Bc7LdrBlockPacker.endpointError(
+                    Bc7LdrBlockPacker.mode6OptimalEndpointPacked(color[comp], 1));
         }
         if (err0 > 0 && err1 > 0) {
             result = new Bc7LdrBlockPacker.Block(5);
             for (int comp = 0; comp < 3; comp++) {
-                int[] endpoint = Bc7LdrBlockPacker.mode5OptimalEndpoint(color[comp]);
-                result.low[0][comp] = endpoint[0];
-                result.high[0][comp] = endpoint[1];
+                int endpoint = Bc7LdrBlockPacker.mode5OptimalEndpointPacked(color[comp]);
+                result.low[0][comp] = Bc7LdrBlockPacker.endpointLow(endpoint);
+                result.high[0][comp] = Bc7LdrBlockPacker.endpointHigh(endpoint);
             }
             result.low[0][3] = color[3];
             result.high[0][3] = color[3];
@@ -715,10 +713,10 @@ final class UastcLdrAstcTranscoder {
         } else {
             result = new Bc7LdrBlockPacker.Block(6);
             int pbit = err1 < err0 ? 1 : 0;
-            int[][] endpoints = pbit == 0 ? mode6P0 : mode6P1;
             for (int comp = 0; comp < 4; comp++) {
-                result.low[0][comp] = endpoints[comp][0];
-                result.high[0][comp] = endpoints[comp][1];
+                int endpoint = Bc7LdrBlockPacker.mode6OptimalEndpointPacked(color[comp], pbit);
+                result.low[0][comp] = Bc7LdrBlockPacker.endpointLow(endpoint);
+                result.high[0][comp] = Bc7LdrBlockPacker.endpointHigh(endpoint);
             }
             result.pbits[0][0] = pbit;
             result.pbits[0][1] = pbit;

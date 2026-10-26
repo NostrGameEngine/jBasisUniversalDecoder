@@ -50,6 +50,10 @@ final class Bc7LdrBlockPacker {
         15, 3, 15, 15, 15, 15, 15, 15,
         15, 15, 15, 15, 3, 15, 15, 8
     };
+    // All valid byte values/pbits, computed once in the original low-then-high search order.
+    // Private final primitive tables are safely published by class initialization and never exposed.
+    private static final int[] MODE6_SOLID_ENDPOINTS = solidEndpointTable(true);
+    private static final int[] MODE5_SOLID_ENDPOINTS = solidEndpointTable(false);
 
     private Bc7LdrBlockPacker() {
     }
@@ -143,36 +147,61 @@ final class Bc7LdrBlockPacker {
     }
 
     static int[] mode6OptimalEndpoint(int value, int pbit) {
-        int weight = BC7_WEIGHTS[3][5];
-        int bestError = Integer.MAX_VALUE;
-        int bestLow = 0;
-        int bestHigh = 0;
-        for (int low = 0; low < 128; low++) {
-            int lowEndpoint = (low << 1) | pbit;
-            for (int high = 0; high < 128; high++) {
-                int highEndpoint = (high << 1) | pbit;
-                int decoded = (lowEndpoint * (64 - weight) + highEndpoint * weight + 32) >> 6;
-                int error = decoded - value;
-                error *= error;
-                if (error < bestError) {
-                    bestError = error;
-                    bestLow = low;
-                    bestHigh = high;
-                }
-            }
+        int packed = mode6OptimalEndpointPacked(value, pbit);
+        return new int[] {endpointLow(packed), endpointHigh(packed), endpointError(packed)};
+    }
+
+    static int mode6OptimalEndpointPacked(int value, int pbit) {
+        if ((value & ~255) != 0 || (pbit & ~1) != 0) {
+            throw new IllegalArgumentException("BC7 solid byte value or pbit is out of range");
         }
-        return new int[] {bestLow, bestHigh, bestError};
+        return MODE6_SOLID_ENDPOINTS[(pbit << 8) | value];
     }
 
     static int[] mode5OptimalEndpoint(int value) {
-        int weight = BC7_WEIGHTS[1][1];
+        int packed = mode5OptimalEndpointPacked(value);
+        return new int[] {endpointLow(packed), endpointHigh(packed), endpointError(packed)};
+    }
+
+    static int mode5OptimalEndpointPacked(int value) {
+        if ((value & ~255) != 0) {
+            throw new IllegalArgumentException("BC7 solid byte value is out of range");
+        }
+        return MODE5_SOLID_ENDPOINTS[value];
+    }
+
+    static int endpointLow(int packed) {
+        return packed & 127;
+    }
+
+    static int endpointHigh(int packed) {
+        return (packed >>> 7) & 127;
+    }
+
+    static int endpointError(int packed) {
+        return packed >>> 14;
+    }
+
+    private static int[] solidEndpointTable(boolean mode6) {
+        int[] table = new int[mode6 ? 512 : 256];
+        int pbits = mode6 ? 2 : 1;
+        for (int pbit = 0; pbit < pbits; pbit++) {
+            for (int value = 0; value < 256; value++) {
+                table[(pbit << 8) | value] = computeSolidEndpoint(value, pbit, mode6);
+            }
+        }
+        return table;
+    }
+
+    private static int computeSolidEndpoint(int value, int pbit, boolean mode6) {
+        int weight = mode6 ? BC7_WEIGHTS[3][5] : BC7_WEIGHTS[1][1];
         int bestError = Integer.MAX_VALUE;
         int bestLow = 0;
         int bestHigh = 0;
         for (int low = 0; low < 128; low++) {
-            int lowEndpoint = (low << 1) | (low >>> 6);
+            int lowEndpoint = (low << 1) | (mode6 ? pbit : low >>> 6);
             for (int high = 0; high < 128; high++) {
-                int highEndpoint = (high << 1) | (high >>> 6);
+                int highEndpoint = (high << 1) | (mode6 ? pbit : high >>> 6);
                 int decoded = (lowEndpoint * (64 - weight) + highEndpoint * weight + 32) >> 6;
                 int error = decoded - value;
                 error *= error;
@@ -183,7 +212,7 @@ final class Bc7LdrBlockPacker {
                 }
             }
         }
-        return new int[] {bestLow, bestHigh, bestError};
+        return bestLow | (bestHigh << 7) | (bestError << 14);
     }
 
     static int[] colorSelectorAnchors(int mode, int partition) {
@@ -296,13 +325,13 @@ final class Bc7LdrBlockPacker {
     }
 
     static void packMode5Solid(byte[] output, int offset, int r, int g, int b, int a) {
-        int[] rEndpoints = mode5OptimalEndpoint(r);
-        int[] gEndpoints = mode5OptimalEndpoint(g);
-        int[] bEndpoints = mode5OptimalEndpoint(b);
+        int rEndpoints = mode5OptimalEndpointPacked(r);
+        int gEndpoints = mode5OptimalEndpointPacked(g);
+        int bEndpoints = mode5OptimalEndpointPacked(b);
 
-        long bits = rEndpoints[0] | ((long) rEndpoints[1] << 7);
-        bits |= ((long) gEndpoints[0] << 14) | ((long) gEndpoints[1] << 21);
-        bits |= ((long) bEndpoints[0] << 28) | ((long) bEndpoints[1] << 35);
+        long bits = endpointLow(rEndpoints) | ((long) endpointHigh(rEndpoints) << 7);
+        bits |= ((long) endpointLow(gEndpoints) << 14) | ((long) endpointHigh(gEndpoints) << 21);
+        bits |= ((long) endpointLow(bEndpoints) << 28) | ((long) endpointHigh(bEndpoints) << 35);
         bits |= ((long) a << 42) | ((long) a << 50);
 
         output[offset] = 0b00100000;
