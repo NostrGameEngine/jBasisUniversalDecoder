@@ -1192,7 +1192,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
                 checkedToInt(header.getSelectorCodebookFileOffset()),
                 checkedToInt(header.getSelectorCodebookFileSize()));
 
-        Ktx2BasisSliceDesc[] imageSlices = basisUastcImageSlices(container, request.getImageIndex());
+        Ktx2BasisSliceDesc[] imageSlices = basisImageSlices(container, request.getImageIndex());
         Ktx2BasisSliceDesc[] alphaSlices = hasAlphaSlices
                 ? basisImageAlphaSlices(container, request.getImageIndex(), imageSlices)
                 : null;
@@ -2032,17 +2032,15 @@ public final class BasisuJavaDecoder implements BasisDecoder {
     }
 
     private static Ktx2BasisSliceDesc[] basisUastcImageSlices(BasisContainer container, int imageIndex) {
-        try {
-            return basisImageSlices(container, imageIndex);
-        } catch (BasisDecodeException exception) {
-            if (!exception.getMessage().contains("has no RGB slices")) {
-                throw exception;
-            }
+        if (imageIndex < 0 || imageIndex >= container.getImageCount()) {
+            throw new BasisDecodeException("Basis image index out of range: " + imageIndex);
         }
 
+        // UASTC stores RGBA together. HasAlpha describes each mip's content,
+        // unlike ETC1S where it identifies a separate alpha slice.
         int maxLevel = -1;
         for (Ktx2BasisSliceDesc slice : container.getSlices()) {
-            if (slice.getImageIndex() == imageIndex && slice.hasAlpha()) {
+            if (slice.getImageIndex() == imageIndex) {
                 maxLevel = Math.max(maxLevel, slice.getLevelIndex());
             }
         }
@@ -2052,7 +2050,7 @@ public final class BasisuJavaDecoder implements BasisDecoder {
 
         Ktx2BasisSliceDesc[] imageSlices = new Ktx2BasisSliceDesc[maxLevel + 1];
         for (Ktx2BasisSliceDesc slice : container.getSlices()) {
-            if (slice.getImageIndex() == imageIndex && slice.hasAlpha()) {
+            if (slice.getImageIndex() == imageIndex) {
                 int level = slice.getLevelIndex();
                 if (imageSlices[level] != null) {
                     throw new BasisDecodeException(
